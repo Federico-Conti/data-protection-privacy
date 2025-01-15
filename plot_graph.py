@@ -1,7 +1,6 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 import pandas as pd
-import os
 import csv
 
 # Define the path to your CSV file
@@ -22,7 +21,6 @@ with open(csv_file_path, mode='r') as file:
         data["id_1"].append(row[0])
         data["id_2"].append(row[1])
 
-
 # Create a DataFrame from the data
 df = pd.DataFrame(data)
 
@@ -32,13 +30,14 @@ G = nx.from_pandas_edgelist(df, "id_1", "id_2")
 # Draw the graph
 plt.figure(figsize=(15, 15))
 pos = nx.spring_layout(G, seed=42)  # Spring layout for better visualization
-nx.draw(
-    G,
-    pos,
-    with_labels=True,
-    node_size=40,
-    edge_color="gray",
-    node_color="blue"
-)
-plt.title("Undirected Graph Visualization")
+
+# Draw nodes and edges with improved visualization
+nx.draw_networkx_nodes(G, pos, node_size=500, node_color="skyblue")
+nx.draw_networkx_edges(G, pos, edge_color="gray", alpha=0.5)
+nx.draw_networkx_labels(G, pos, font_size=12, font_color="black")
+
+# Set title and save the graph
+plt.title("Undirected Graph Visualization with Node IDs", fontsize=16)
+plt.axis("off")  # Hide the axes for a cleaner look
 plt.savefig("out.png")
+plt.show()
