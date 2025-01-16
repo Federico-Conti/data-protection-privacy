@@ -1,4 +1,4 @@
-from graph import Graph
+from graph import Graph, Node
 
 class Anonymization(Graph):
     
@@ -24,7 +24,7 @@ class Anonymization(Graph):
                 neighborhood.addVertex(Node(neighbor_id, neighbor_node.label)) # ha senso ricrearsi una classe Node?
 
         for neighbor_id in neighbors:
-            neighbor_node = self.graph.getNode(neighbor_id)
+            neighbor_node = self.G.getNode(neighbor_id)
             if neighbor_node:
                 for edge in neighbor_node.edges:
                     if edge in neighbors:  # Ensure the edge is within the neighborhood

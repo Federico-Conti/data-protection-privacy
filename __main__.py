@@ -33,9 +33,10 @@ def main():
         print(node)
     print("\n\n\n")
     anon = Anonymization(graph)
-    n =  anon.extractNeighborhood(1)
+    n =  anon.extract_neighborhood(1)
 
-    print(anon.decomposeNeighborhood(n))
+    for node in n.N:
+        print(node)
  
 if __name__ == "__main__":
     main()
