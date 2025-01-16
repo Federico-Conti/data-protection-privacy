@@ -12,8 +12,12 @@ class Anonymization(Graph):
         neighbors = [self.G.getNode(neighbor_id) for neighbor_id in node.edges]
         components = []
         def dfs(current, component):
-            if current.Visited:
+            if current.Visited: #(all component not in current.edges )
                 return
+            for c in component:
+              if c.node_id not in current.edges:
+                  return
+              
             current.Visited = True
             component.append(current)
             for neighbor_id in current.edges:
@@ -54,6 +58,7 @@ class Anonymization(Graph):
     def extract_neighborhoods(self):
         for node in self.G_prime.N:
             components = self.extract_components(node)
+            print(f"Node: {node.node_id}, {components}\n")
             
             # Get the DFS code for each component and sort them
             coded_components = [self.get_dfs_code(component) for component in components]

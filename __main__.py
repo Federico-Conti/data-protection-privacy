@@ -36,8 +36,10 @@ def main():
     # Anonymize the graph
     anon = Anonymization(graph)
     anon.extract_neighborhoods()
+    
     for key, value in anon._neighborhoods.items():
         print(f"Node: {key.node_id}, Neighborhood: {value}\n")
+        
     VertexList = anon.nodes_sorted_by_neighborhood_size()
     print("Vertex List", [node.node_id for node in VertexList])
  
