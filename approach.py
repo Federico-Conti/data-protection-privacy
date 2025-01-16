@@ -9,24 +9,59 @@ class Anonymization(Graph):
         self._neighborhoods = {}
 
     def extract_components(self,node):
-        neighbors = node.edges
-        components = {}
-        for neighbor_id in neighbors:
-            n_node = self.G_prime.getNode(neighbor_id)
-            n_neighbors = n_node.edges
+        neighbors = [self.G.getNode(neighbor_id) for neighbor_id in node.edges]
+        components = []
+        def dfs(current, component):
+            if current.Visited:
+                return
+            current.Visited = True
+            component.append(current)
+            for neighbor_id in current.edges:
+                neighbor = self.G.getNode(neighbor_id)
+                if neighbor in neighbors and not neighbor.Visited:
+                    dfs(neighbor, component)
 
-    def get_dfs_code(self, components):
-        return []
+        for n in self.G.N:
+            n.Visited = False
+
+        for neighbor in neighbors:
+            if not neighbor.Visited:
+                component = []
+                dfs(neighbor, component)
+                components.append(component)
+
+        return components
+        
+
+    def get_dfs_code(self, component):
+        component = sorted(component, key=lambda x: x.node_id)
+        edges = []
+        for node in component:
+            for neighbor_id in node.edges:
+                if any(neighbor.node_id == neighbor_id for neighbor in component):
+                    edges.append((node.node_id, neighbor_id, node.label, self.G.getNode(neighbor_id).label))
+
+        edges = sorted(edges)  # Sort edges lexically
+        dfs_code = []
+        for edge in edges:
+            dfs_code.append(f"({edge[0]},{edge[1]},{edge[2]},{edge[3]})")
+        
+        return ''.join(dfs_code)
 
     def extract_neighborhoods(self):
         for node in self.G_prime.N:
             components = self.extract_components(node)
-            dfs_code = self.get_dfs_code(components)
-            self._neighborhoods[node] = dfs_code
+            
+            # Get the DFS code for each component and sort them
+            coded_components = [self.get_dfs_code(component) for component in components]
+            coded_components.sort(key=lambda x: (len(x), x))  # Sort by length and lexically
+            
+            # Store the Neighborhood Component Code (NCC)
+            self._neighborhoods[node] = tuple(coded_components)
             
     
     def nodes_sorted_by_neighborhood_size(self):
-        return sorted(self._neighborhoods, key=lambda x: len(self._neighborhoods[x]), reverse=True)
+        return sorted(self._neighborhoods, key=lambda x: len(self._neighborhoods[x]))
 
     
     
