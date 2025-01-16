@@ -1,0 +1,12 @@
+## Preserving Privacy in Social Networks Against Neighborhood Attacks
+
+This research paper addresses the crucial problem of preserving privacy in social network data when releasing it publicly. The authors focus on a specific type of privacy attack called neighborhood attacks, where an adversary, knowing a target individual's immediate connections and their relationships, can re-identify the individual even if their name is removed. The paper introduces a novel anonymization method that aims to counteract neighborhood attacks by grouping individuals with similar neighborhood structures and generalizing their attributes or adding edges to ensure k-anonymity. The effectiveness of this method is demonstrated through experiments with real and synthetic social network data, showing that it preserves privacy while allowing for accurate aggregate network queries. The paper also discusses challenges for future work, including protecting more extended neighborhoods (d>1) and addressing limitations of k-anonymity in terms of protecting sensitive information.
+
+### Steps
+
+The method is in two steps:
+
+1. **Neighborhood Extraction**: Extract the neighborhoods of all vertices in the network. 
+   To facilitate comparisons among neighborhoods of different vertices, including the isomorphism tests frequently conducted in anonymization, a simple yet effective neighborhood component coding technique is proposed to represent the neighborhoods concisely.
+
+2. **Grouping and Anonymization**: Greedily organize vertices into groups and anonymize the neighborhoods of vertices in the same group.
