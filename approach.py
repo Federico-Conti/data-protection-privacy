@@ -1,71 +1,35 @@
 from graph import Graph, Node
 
 class Anonymization(Graph):
+
     
     def __init__(self, G: Graph):
         self.G = G
         self.G_prime = self.G
+        self._neighborhoods = {}
 
-
-    def extract_neighborhood(self, node_id):
-        """
-        Extracts the neighborhood of the given node_id.
-        """
-        node = self.G.getNode(node_id)
-        if not node:
-            return None
-
-        neighborhood = Graph()
+    def extract_components(self,node):
         neighbors = node.edges
-
+        components = {}
         for neighbor_id in neighbors:
-            neighbor_node = self.G.getNode(neighbor_id)
-            if neighbor_node:
-                neighborhood.addVertex(Node(neighbor_id, neighbor_node.label)) # ha senso ricrearsi una classe Node?
+            n_node = self.G_prime.getNode(neighbor_id)
+            n_neighbors = n_node.edges
 
-        for neighbor_id in neighbors:
-            neighbor_node = self.G.getNode(neighbor_id)
-            if neighbor_node:
-                for edge in neighbor_node.edges:
-                    if edge in neighbors:  # Ensure the edge is within the neighborhood
-                        neighborhood.getNode(neighbor_id).addEdge(edge)
+    def get_dfs_code(self, components):
+        return []
 
-        return neighborhood
+    def extract_neighborhoods(self):
+        for node in self.G_prime.N:
+            components = self.extract_components(node)
+            dfs_code = self.get_dfs_code(components)
+            self._neighborhoods[node] = dfs_code
+            
+    
+    def nodes_sorted_by_neighborhood_size(self):
+        return sorted(self._neighborhoods, key=lambda x: len(self._neighborhoods[x]), reverse=True)
 
     
     
     
     
-    # def extractNeighborhood(self, node_id):
-    #     """Extract the neighborhood (induced subgraph) of a node."""
-    #     node = self.G.getNode(node_id)
-    #     if not node:
-    #         return []
-
-    #     neighbors = node.edges
-    #     subgraph_nodes = [self.G.getNode(nid) for nid in neighbors]
-
-    #     return [n for n in subgraph_nodes if n is not None]
-
-    # def decomposeNeighborhood(self, neighborhood):
-    #      """Decompose a neighborhood into connected components."""
-    #      components = []
-    #      visited = set()
-
-    #      def dfs(node, component):
-    #         if node.node_id in visited:
-    #             return
-    #         visited.add(node.node_id)
-    #         component.append(node.node_id)
-    #         for neighbor_id in node.edges:
-    #             neighbor = self.G.getNode(neighbor_id)  
-    #             if neighbor and neighbor.node_id not in visited:
-    #                 dfs(neighbor, component)
-
-    #      for node in neighborhood:
-    #         if node.node_id not in visited:
-    #             component = []
-    #             dfs(node, component)
-    #             components.append(component)
-
-    #      return components
+ 

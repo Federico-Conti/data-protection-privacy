@@ -2,7 +2,7 @@ class Node:
     def __init__(self, node_id, label):
         self.node_id = node_id
         self.label = label
-        self.Nisited = False
+        self.Visited = False
         self.edges = []  # List to store connected node IDs
         
     def addEdge(self, neighbor_id):

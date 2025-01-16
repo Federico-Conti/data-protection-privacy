@@ -32,11 +32,12 @@ def main():
     for node in graph.N:
         print(node)
     print("\n\n\n")
-    anon = Anonymization(graph)
-    n =  anon.extract_neighborhood(1)
 
-    for node in n.N:
-        print(node)
+    # Anonymize the graph
+    anon = Anonymization(graph)
+    anon.extract_neighborhoods()
+    VertexList = anon.nodes_sorted_by_neighborhood_size()
+    print(VertexList)
  
 if __name__ == "__main__":
     main()
