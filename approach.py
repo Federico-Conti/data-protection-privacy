@@ -38,8 +38,11 @@ class Anonymization(Graph):
         edges = []
         for node in component:
             for neighbor_id in node.edges:
-                if any(neighbor.node_id == neighbor_id for neighbor in component):
-                    edges.append((node.node_id, neighbor_id, node.label, self.G.getNode(neighbor_id).label))
+                if neighbor_id in {neighbor.node_id for neighbor in component}:
+                    edge = (node.node_id, neighbor_id, node.label, self.G.getNode(neighbor_id).label)
+                    reverse_edge = (neighbor_id, node.node_id, self.G.getNode(neighbor_id).label, node.label)
+                    if edge not in edges and reverse_edge not in edges:
+                        edges.append(edge)
 
         edges = sorted(edges)  # Sort edges lexically
         dfs_code = []
