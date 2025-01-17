@@ -80,7 +80,7 @@ class Anonymization(Graph):
         R = []
         
         for node in component:
-            BW = [] # this tuple are swapped respect FW tuple (id2,id1,l2,l1)
+            # BW = [] # this tuple are swapped respect FW tuple (id2,id1,l2,l1)
 
             # Perform DFS on the node 
             """
@@ -88,6 +88,7 @@ class Anonymization(Graph):
             
             """
             FW = self.DFS(node,component)
+            R = FW
             print("FW: ", FW)
            
             # BW step
@@ -103,10 +104,10 @@ class Anonymization(Graph):
             """
             for node in component:
                 for e in node.getEdgesInComponent(component):
-                    if not any((node.node_id == fw[0] and e == fw[1]) or (node.node_id == fw[1] and e == fw[0]) for fw in FW):
-                            BW.append((e, node.node_id))
+                    if not any((node.node_id == tuple[0] and e == tuple[1]) or (node.node_id == tuple[1] and e == tuple[0]) for tuple in R):
+                            R.append((e, node.node_id))
             
-            print("BW ", BW)
+            print("Result ", R)
             return
     
     def extract_neighborhoods(self):
