@@ -1,9 +1,15 @@
 class Node:
-    def __init__(self, node_id, label):
+    def __init__(self, node_id):
         self.node_id = node_id
-        self.label = label
+        self.label = None
         self.Visited = False
         self.edges = []  # List to store connected node IDs
+
+    def getEdgesInComponent(self, component):
+        for e in self.edges:
+            if e in [n.node_id for n in component]:
+                yield e
+
         
     def addEdge(self, neighbor_id):
         if neighbor_id not in self.edges:  # ANoid duplicate edges

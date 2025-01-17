@@ -16,13 +16,15 @@ def main():
             # Handle the first node
             node1 = graph.getNode(id_1)
             if node1 is None:
-                node1 = Node(id_1, label)
+                node1 = Node(id_1)
                 graph.addVertex(node1)
-            
+            elif node1.label is None:
+                node1.label = label
+                
             # Handle the second node
             node2 = graph.getNode(id_2)
             if node2 is None:
-                node2 = Node(id_2, label)
+                node2 = Node(id_2)
                 graph.addVertex(node2)
             
             node1.addEdge(id_2)
@@ -37,11 +39,11 @@ def main():
     anon = Anonymization(graph)
     anon.extract_neighborhoods()
     
-    for key, value in anon._neighborhoods.items():
-        print(f"Node: {key.node_id}, Neighborhood: {value}\n")
+    # for key, value in anon._neighborhoods.items():
+    #     print(f"Node: {key.node_id}, Neighborhood: {value}\n")
         
-    VertexList = anon.nodes_sorted_by_neighborhood_size()
-    print("Vertex List", [node.node_id for node in VertexList])
+    # VertexList = anon.nodes_sorted_by_neighborhood_size()
+    # print("Vertex List", [node.node_id for node in VertexList])
  
 if __name__ == "__main__":
     main()
