@@ -105,7 +105,7 @@ class Anonymization(Graph):
             for node in component:
                 for e in node.getEdgesInComponent(component):
                     if not any((node.node_id == tuple[0] and e == tuple[1]) or (node.node_id == tuple[1] and e == tuple[0]) for tuple in R):
-                            R.append((e, node.node_id))
+                        R.append((e, node.node_id, self.G.getNode(e).label, node.label))
             
             print("Result ", R)
             return
