@@ -39,11 +39,15 @@ def main():
     anon = Anonymization(graph)
     anon.extract_neighborhoods()
     
-    # for key, value in anon._neighborhoods.items():
-    #     print(f"Node: {key.node_id}, Neighborhood: {value}\n")
-        
-    # VertexList = anon.nodes_sorted_by_neighborhood_size()
-    # print("Vertex List", [node.node_id for node in VertexList])
+    for key, value in anon._neighborhoods.items():
+        print(f"Node: {key.node_id}, Neighborhood: {value}\n")
+    print("\n\n\n")
+    VertexList = anon.nodes_sorted_by_neighborhood_size() #lista di nodi ordinati rispetto alle loro NCC
+    
+    for v in VertexList:
+        print(v)
+       
+    
  
 if __name__ == "__main__":
     main()

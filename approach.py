@@ -70,8 +70,9 @@ class Anonymization(Graph):
 
         return dfs_result
 
+    
     def getBestComponentDFS(self, component):
-        """per ogni della dela componente facciamo una dfs e controlliamo quella lessicamente migliore"""
+        """per ogni nodo della dela componente facciamo una dfs e controlliamo quella lessicamente migliore"""
         # Initialize visited to False for each component node
         for node in component:
             node.visited = False
@@ -88,8 +89,8 @@ class Anonymization(Graph):
             
             """
             FW = self.DFS(node,component)
-            R = FW
-            print("FW: ", FW)
+            R_aux = FW
+  
            
             # BW step
             """
@@ -104,41 +105,56 @@ class Anonymization(Graph):
             """
             for node in component:
                 for e in node.getEdgesInComponent(component):
-                    if not any((node.node_id == tuple[0] and e == tuple[1]) or (node.node_id == tuple[1] and e == tuple[0]) for tuple in R):
-                        R.append((e, node.node_id, self.G.getNode(e).label, node.label))
-            
-            print("Result ", R)
-            return
-    
+                    if not any((node.node_id == tuple[0] and e == tuple[1]) or (node.node_id == tuple[1] and e == tuple[0]) for tuple in R_aux):
+                        R_aux.append((e, node.node_id, self.G.getNode(e).label, node.label))
+
+            R_aux.sort(key=lambda x: (x[0], x[1])) # <=
+            R.append(R_aux)
+
+        R.sort(key=lambda x: (len(x), [(edge[2], edge[3], edge[0], edge[1]) for edge in x])) #restituiamo la best DFS per ogni C 
+ 
+        return R[0] # the head is the first lessically correct
+        
+        
     def extract_neighborhoods(self):
        for node in self.G_prime.N:
-        if node.node_id==1:
             components = self.extract_components(node)
             
-            components_str = "- ".join([f"C{i+1}=[{' ; '.join(str(n) for n in comp)}]\n" 
-                                        for i, comp in enumerate(components)])
-            print(f"Node {node.node_id}\n- {components_str}\n")
+            # components_str = "- ".join([f"C{i+1}=[{' ; '.join(str(n) for n in comp)}]\n" 
+            #                             for i, comp in enumerate(components)])
+            # print(f"Node {node.node_id}\n- {components_str}\n")
                 
 
-            # Get the DFS code for each component and sort them
-            coded_components = []
+            NCC = []
+            # Get the DFS code for each component of the node and sort them, after append the best in NCC
             for c in components:
                 
                 dfs_code = self.getBestComponentDFS(c)
-                print(dfs_code)
-                coded_components.append(dfs_code)
+                NCC.append(dfs_code) #Rimepo la NCC con la DFS migliore per ogni C dello stesso vertice 
             
-            # coded_components.sort(key=lambda x: (len(x), x))  # Sort by length and lexically
+            NCC.sort(key=lambda x: (len(x), x))  # Sort by length and lexically
             
-            # # Store the Neighborhood Component Code (NCC)
-            # self._neighborhoods[node] = tuple(coded_components)
+            # Store the Neighborhood Component Code (NCC)
+            self._neighborhoods[node] = NCC
         
     
     def nodes_sorted_by_neighborhood_size(self):
-        return sorted(self._neighborhoods, key=lambda x: len(self._neighborhoods[x]))
+        """
+        Sort nodes based on the number of couples (pairs of nodes) in each neighborhood.
+        """
+        return sorted(
+            self._neighborhoods.keys(), 
+            key=lambda node_id: sum(len(c) for c in self._neighborhoods[node_id]),
+            reverse=True
+        )
 
     
+    def cost(self,u,v,alpha,beta,gamma):
+        NotImplemented
+        
+        
     
+        
     
+  
     
- 
