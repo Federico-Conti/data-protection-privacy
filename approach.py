@@ -22,7 +22,7 @@ class Anonymization(Graph):
                 if neighbor in neighbors and not neighbor.Visited:
                     dfs(neighbor, component)
 
-        for n in self.G.N:
+        for n in self.G_prime.N:
             n.Visited = False
 
         for neighbor in neighbors:
@@ -74,9 +74,9 @@ class Anonymization(Graph):
     def getBestComponentDFS(self, component):
         """per ogni nodo della dela componente facciamo una dfs e controlliamo quella lessicamente migliore"""
         # Initialize visited to False for each component node
-        # if len(component) == 1:
-        #     node = component[0]
-        #     return [(node.node_id, None, node.label, None)]
+        if len(component) == 1:
+            node = component[0]
+            return [(node.node_id, None, node.label, None)]
 
         for node in component:
             node.visited = False
@@ -291,8 +291,6 @@ class Anonymization(Graph):
 
                 # Skip calculation if nodes are missing
                 if edge_u[1] is None or edge_v[1] is None:
-                    # Assign a large cost to avoid matching with invalid nodes
-                    cost += float('inf')
                     continue
 
                 # Compute the cost of matching edge_u and edge_v

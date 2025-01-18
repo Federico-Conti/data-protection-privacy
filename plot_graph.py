@@ -11,7 +11,7 @@ data = {"id_1": [], "id_2": []}
 # Open the CSV file
 with open(csv_file_path, mode='r') as file:
     # Create a CSV reader object
-    csv_reader = csv.reader(file)
+    csv_reader = csv.reader(file)2,2,Quinn
     
     # Skip the header
     next(csv_reader)

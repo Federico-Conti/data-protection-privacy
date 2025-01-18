@@ -39,8 +39,9 @@ class Graph:
         self.N.append(node)
 
     def getNode(self, node_id):
-        for node in self.N:
-            if node.node_id == node_id:
-                return node
+        if node_id is not None:
+            for node in self.N:
+                if node.node_id == node_id:
+                    return node
         return None
 
