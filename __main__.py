@@ -45,19 +45,19 @@ def main():
     # Output the nodes and their connections
     for node in graph.N:
         print(node)
-    print("\n\n\n")
+    print("\n\n")
 
     # PREPARE PHASE: Extract neighborhoods and sort vertices by induced subgraph size
     anon = Anonymization(graph)
     anon.extract_neighborhoods()
     
-    for key, value in anon._neighborhoods.items():
-        print(f"Node: {key.node_id}, Neighborhood: {value}\n")
-    print("\n\n\n")
+    # for key, value in anon._neighborhoods.items():
+    #     print(f"Node: {key.node_id}, Neighborhood: {value}\n")
+    # print("\n\n\n")
     VertexList = anon.G_prime.N
-    VertexList.sort(key=lambda node: node.induced_subgraph_size(graph), reverse=True)  # Descending order
-    for v in VertexList:
-        print(v)
+    VertexList.sort(key=lambda node: node.induced_subgraph_size(anon.G_prime), reverse=True)  # Descending order
+    # for v in VertexList:
+    #     print(v)
 
     VertexListCopy = VertexList[:]
 
@@ -77,13 +77,15 @@ def main():
             CandidateSet = VertexListCopy
         
         print(f"Seed Vertex: {SeedVertex.node_id}, Candidate Set: {[v.node_id for v in CandidateSet]}")
-        
+        for node in anon.G_prime.N:
+            print(f"Node {node.node_id} visited: {node.Visited}")
         # Anonymize the neighborhoods
         anon.anonymize_neighborhoods([SeedVertex] + CandidateSet, k)
 
         # Update VertexList
         VertexListCopy = [v for v in VertexListCopy if v not in CandidateSet]
     
+    print("\n\n")
     # OUTPUT PHASE: Output the anonymized graph
     for node in anon.G_prime.N:
         print(node)

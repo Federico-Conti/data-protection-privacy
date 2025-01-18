@@ -348,10 +348,11 @@ class Anonymization(Graph):
                     for j, comp_u in enumerate(ncc_u):
                         if j in matched_u:  # Skip already matched components
                             continue
-                        if comp_v == comp_u:  # Perfect match based on minimum DFS code
-                            matched_v.add(i)
-                            matched_u.add(j)
-                            break
+                        if len(comp_v) == len(comp_u):
+                            if all(edge_v[2:] == edge_u[2:] for edge_v, edge_u in zip(comp_v, comp_u)):
+                                matched_v.add(i)
+                                matched_u.add(j)
+                                break
 
                 # Step 2.2: Match remaining components using greedy matching
                 for i, comp_v in enumerate(ncc_v):
@@ -375,7 +376,7 @@ class Anonymization(Graph):
                     if best_match_idx is not None:
                         matched_v.add(i)
                         matched_u.add(best_match_idx)
-                        self.make_isomorphic(comp_v, comp_u, k)
+                        self.make_isomorphic(comp_v, comp_u)
 
                 # Step 2.3: Handle unmatched components
                 for i, comp_v in enumerate(ncc_v):
@@ -401,19 +402,19 @@ class Anonymization(Graph):
         # Step 3: Update the graph and neighborhoods
         self.extract_neighborhoods()
 
-    def make_isomorphic(self, comp_v, comp_u, k):
+    def make_isomorphic(self, comp_v, comp_u):
+
         """
-        Modify components to make them isomorphic by adding vertices or edges.
+        Modify components to make them isomorphic by adding vertices, edges, and generalizing labels.
 
         Args:
-            comp_v (list): Component of NeighborG(v).
-            comp_u (list): Component of NeighborG(u).
-            k (int): Anonymization requirement parameter.
+            comp_v (list): Component of NeighborG(v) (list of DFS codes).
+            comp_u (list): Component of NeighborG(u) (list of DFS codes).
         """
         size_v = len(comp_v)
         size_u = len(comp_u)
 
-        # Balance the number of vertices
+        # Step 1: Balance the number of vertices
         if size_v < size_u:
             for _ in range(size_u - size_v):
                 new_vertex = self.select_new_vertex()
@@ -423,7 +424,80 @@ class Anonymization(Graph):
                 new_vertex = self.select_new_vertex()
                 self.add_vertex_to_component(new_vertex, comp_u)
 
-        # Balance edges (if needed, implement a method to match edges)
+        # Step 2: Balance edges by ensuring every edge in one component has a match in the other
+        for edge_v in comp_v:
+            if not any(
+                edge_v[0] == edge_u[0] and edge_v[1] == edge_u[1] and edge_v[2:] == edge_u[2:]
+                for edge_u in comp_u
+            ):
+                # Add missing edge to comp_u
+                new_vertex = self.select_new_vertex()
+                self.add_vertex_to_component(new_vertex, comp_u)
+                comp_u.append((edge_v[0], new_vertex.node_id, edge_v[2], new_vertex.label))
+
+        for edge_u in comp_u:
+            if not any(
+                edge_u[0] == edge_v[0] and edge_u[1] == edge_v[1] and edge_u[2:] == edge_v[2:]
+                for edge_v in comp_v
+            ):
+                # Add missing edge to comp_v
+                new_vertex = self.select_new_vertex()
+                self.add_vertex_to_component(new_vertex, comp_v)
+                comp_v.append((edge_u[0], new_vertex.node_id, edge_u[2], new_vertex.label))
+
+        # Step 3: Generalize labels where needed to ensure perfect matches
+        for i in range(min(len(comp_v), len(comp_u))):
+            edge_v = comp_v[i]
+            edge_u = comp_u[i]
+
+            # Generalize labels to the least specific common ancestor
+            label_v1, label_v2 = edge_v[2], edge_v[3]
+            label_u1, label_u2 = edge_u[2], edge_u[3]
+
+            common_label1 = self.get_least_specific_common_label(label_v1, label_u1)
+            common_label2 = self.get_least_specific_common_label(label_v2, label_u2)
+
+            # Update edges in both components
+            comp_v[i] = (edge_v[0], edge_v[1], common_label1, common_label2)
+            comp_u[i] = (edge_u[0], edge_u[1], common_label1, common_label2)
+            
+    def get_least_specific_common_label(self, label1, label2):
+        """
+        Find the least specific (most general) common label for two given labels.
+
+        Args:
+            label1 (str): The first label.
+            label2 (str): The second label.
+
+        Returns:
+            str: The least specific common label.
+        """
+        label_hierarchy = {
+            "*": 3,  # Root (most general)
+            "Professional": 2,
+            "Student": 1,
+        }
+        
+        # If either label is already the most general, return it
+        if label1 == "*" or label2 == "*":
+            return "*"
+
+        # Get generalization levels
+        level1 = self.get_generalization_level(label1)
+        level2 = self.get_generalization_level(label2)
+
+        # If the levels are the same, the labels themselves are the least specific common labels
+        if level1 == level2:
+            return label1  # Both labels are equivalent in specificity
+        
+        # Find the least specific (most general) label based on hierarchy levels
+        # Traverse the hierarchy to find the common parent
+        reverse_hierarchy = {v: k for k, v in label_hierarchy.items()}
+        least_specific_level = max(level1, level2)  # The more general level
+
+        # Return the corresponding label for the least specific level
+        return reverse_hierarchy.get(least_specific_level, "*")
+
 
 
     def select_new_vertex(self):
