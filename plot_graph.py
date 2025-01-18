@@ -4,7 +4,7 @@ import pandas as pd
 import csv
 
 # Define the path to your CSV file
-csv_file_path = 'test.csv'
+csv_file_path = 'result.csv'
 
 data = {"id_1": [], "id_2": []}
 
@@ -39,5 +39,5 @@ nx.draw_networkx_labels(G, pos, font_size=12, font_color="black")
 # Set title and save the graph
 plt.title("Undirected Graph Visualization with Node IDs", fontsize=16)
 plt.axis("off")  # Hide the axes for a cleaner look
-plt.savefig("out.png")
+plt.savefig("result.png")
 plt.show()

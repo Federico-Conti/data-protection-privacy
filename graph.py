@@ -8,6 +8,22 @@ class Node:
     def addEdge(self, neighbor_id):
         if neighbor_id not in self.edges:  # ANoid duplicate edges
             self.edges.append(neighbor_id)
+            
+    def getEdgesInComponent(self, component):
+        for e in self.edges:
+            if e in [n.node_id for n in component]:
+                yield e
+            
+    def induced_subgraph_size(self,graph):
+        neighbors = set(self.edges)  # Nodes directly connected to 'node'
+        edges_in_neighborhood = 0
+        for neighbor_id in neighbors:
+            neighbor = graph.getNode(neighbor_id)
+            if neighbor:
+                # Count edges among neighbors
+                edges_in_neighborhood += sum(1 for edge in neighbor.edges if edge in neighbors)
+        edges_in_neighborhood //= 2  # Avoid double-counting edges
+        return len(neighbors), edges_in_neighborhood
     
     def isNeighbor(self, neighbor_id):
         return neighbor_id in self.edges
