@@ -51,9 +51,9 @@ def main():
     anon = Anonymization(graph)
     anon.extract_neighborhoods()
     
-    # for key, value in anon._neighborhoods.items():
-    #     print(f"Node: {key.node_id}, Neighborhood: {value}\n")
-    # print("\n\n\n")
+    for key, value in anon._neighborhoods.items():
+        print(f"Node: {key.node_id}, Neighborhood: {value}\n")
+    print("\n\n\n")
     VertexList = anon.G_prime.N
     VertexList.sort(key=lambda node: node.induced_subgraph_size(anon.G_prime), reverse=True)  # Descending order
     # for v in VertexList:
@@ -77,10 +77,12 @@ def main():
             CandidateSet = VertexListCopy
         
         print(f"Seed Vertex: {SeedVertex.node_id}, Candidate Set: {[v.node_id for v in CandidateSet]}")
-        for node in anon.G_prime.N:
-            print(f"Node {node.node_id} visited: {node.Visited}")
         # Anonymize the neighborhoods
-        anon.anonymize_neighborhoods([SeedVertex] + CandidateSet, k)
+        anon.anonymize_neighborhoods([SeedVertex] + CandidateSet)
+
+        for node in anon.G_prime.N:
+            print(f"Node {node.node_id} anonymized: {node.Anonymized}")
+
 
         # Update VertexList
         VertexListCopy = [v for v in VertexListCopy if v not in CandidateSet]

@@ -291,12 +291,15 @@ class Anonymization(Graph):
 
                 # Skip calculation if nodes are missing
                 if edge_u[1] is None or edge_v[1] is None:
-                    continue
-
-                # Compute the cost of matching edge_u and edge_v
-                label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
-                degree_cost = abs(len(self.G_prime.getNode(edge_u[1]).edges) - len(self.G_prime.getNode(edge_v[1]).edges))
-                match_cost = label_cost + degree_cost
+                    # Compute cost based on label generalization and vertex addition
+                    label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
+                    vertex_addition_cost = 1  # Penalty for standalone nodes
+                    match_cost = label_cost + vertex_addition_cost
+                else:
+                    # Compute the cost of matching edge_u and edge_v
+                    label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
+                    degree_cost = abs(len(self.G_prime.getNode(edge_u[1]).edges) - len(self.G_prime.getNode(edge_v[1]).edges))
+                    match_cost = label_cost + degree_cost
 
                 # Track the best match
                 if match_cost < best_match_cost:
@@ -322,7 +325,7 @@ class Anonymization(Graph):
             cost += self.ncp(edge[2], '*') + self.ncp(edge[3], '*')  # Generalize to the most abstract label
         return cost
     
-    def anonymize_neighborhoods(self, candidate_vertices, k):
+    def anonymize_neighborhoods(self, candidate_vertices):
         """
         Anonymize the neighborhoods of the given candidate vertices.
 
@@ -336,7 +339,7 @@ class Anonymization(Graph):
         # Step 2: Greedy matching for each pair of neighborhoods
         while neighborhoods:
             # Pop a neighborhood to anonymize
-            v, ncc_v = neighborhoods.popitem()
+            _, ncc_v = neighborhoods.popitem()
 
             for u, ncc_u in list(neighborhoods.items()):
                 # Match components in NeighborG(v) and NeighborG(u)
@@ -346,121 +349,62 @@ class Anonymization(Graph):
                 # Step 2.1: Match perfectly matched components
                 for i, comp_v in enumerate(ncc_v):
                     for j, comp_u in enumerate(ncc_u):
-                        if j in matched_u:  # Skip already matched components
-                            continue
-                        if len(comp_v) == len(comp_u):
-                            if all(edge_v[2:] == edge_u[2:] for edge_v, edge_u in zip(comp_v, comp_u)):
-                                matched_v.add(i)
-                                matched_u.add(j)
-                                break
-
-                # Step 2.2: Match remaining components using greedy matching
-                for i, comp_v in enumerate(ncc_v):
-                    if i in matched_v:
-                        continue
-                    best_match_cost = float('inf')
-                    best_match_idx = None
-
-                    for j, comp_u in enumerate(ncc_u):
                         if j in matched_u:
                             continue
+                        if len(comp_v) == len(comp_u) and all(edge_v[2:] == edge_u[2:] for edge_v, edge_u in zip(comp_v, comp_u)):
+                            matched_v.add(i)
+                            matched_u.add(j)
+                            break
 
-                        # Compute cost of matching comp_v and comp_u
-                        match_cost = self.match_components_cost(comp_v, comp_u)
+                # Step 2.2: Handle unmatched components
+                unmatched_v = [comp_v for i, comp_v in enumerate(ncc_v) if i not in matched_v]
+                unmatched_u = [comp_u for j, comp_u in enumerate(ncc_u) if j not in matched_u]
 
-                        if match_cost < best_match_cost:
-                            best_match_cost = match_cost
-                            best_match_idx = j
+                # Step 2.3: Make components isomorphic
+                for i, comp_v in enumerate(unmatched_v):
+                    if i >= len(unmatched_u):
+                        break
+                    self.make_isomorphic(comp_v, unmatched_u[i])
+            
 
-                    # Perform the matching
-                    if best_match_idx is not None:
-                        matched_v.add(i)
-                        matched_u.add(best_match_idx)
-                        self.make_isomorphic(comp_v, comp_u)
-
-                # Step 2.3: Handle unmatched components
-                for i, comp_v in enumerate(ncc_v):
-                    if i in matched_v:
-                        continue
-
-                    # Add new vertices or edges to anonymize
-                    new_vertex = self.select_new_vertex()
-                    self.add_vertex_to_component(new_vertex, comp_v)
-
-                for j, comp_u in enumerate(ncc_u):
-                    if j in matched_u:
-                        continue
-
-                    # Add new vertices or edges to anonymize
-                    new_vertex = self.select_new_vertex()
-                    self.add_vertex_to_component(new_vertex, comp_u)
-
+            
             # Mark the vertices in the neighborhoods as anonymized
-            for v in candidate_vertices:
-                v.Visited = True
-
-        # Step 3: Update the graph and neighborhoods
+            for node in candidate_vertices:
+                node.Anonymized = True
         self.extract_neighborhoods()
 
-    def make_isomorphic(self, comp_v, comp_u):
 
+    # Updated methods to match the logic
+
+    def select_new_vertex(self):
+        # Find the vertex with the lowest degree
+        min_degree = float('inf')
+        min_vertex = None
+        for vertex in self.G_prime.N:
+            if vertex.label is not None and len(vertex.edges) < min_degree:
+                min_degree = len(vertex.edges)
+                min_vertex = vertex
+        return min_vertex
+
+    def add_vertex_to_component(self, vertex, component):
         """
-        Modify components to make them isomorphic by adding vertices, edges, and generalizing labels.
+        Add a vertex to a component and update the graph with new edges.
 
         Args:
-            comp_v (list): Component of NeighborG(v) (list of DFS codes).
-            comp_u (list): Component of NeighborG(u) (list of DFS codes).
+            vertex (Node): The vertex to be added.
+            component (list): The component to modify.
         """
-        size_v = len(comp_v)
-        size_u = len(comp_u)
+        if component:
+            last_node_id = component[-1][0]  # Get the last node ID from the component
+            last_node = self.G_prime.getNode(last_node_id)
+            if last_node and vertex.node_id not in last_node.edges:
+                last_node.addEdge(vertex.node_id)
+                vertex.addEdge(last_node_id)
+                print("n")
 
-        # Step 1: Balance the number of vertices
-        if size_v < size_u:
-            for _ in range(size_u - size_v):
-                new_vertex = self.select_new_vertex()
-                self.add_vertex_to_component(new_vertex, comp_v)
-        elif size_u < size_v:
-            for _ in range(size_v - size_u):
-                new_vertex = self.select_new_vertex()
-                self.add_vertex_to_component(new_vertex, comp_u)
+        # Add the vertex to the component as a placeholder for label matching
+        component.append((vertex.node_id, last_node_id, vertex.label, last_node.label if last_node else None))
 
-        # Step 2: Balance edges by ensuring every edge in one component has a match in the other
-        for edge_v in comp_v:
-            if not any(
-                edge_v[0] == edge_u[0] and edge_v[1] == edge_u[1] and edge_v[2:] == edge_u[2:]
-                for edge_u in comp_u
-            ):
-                # Add missing edge to comp_u
-                new_vertex = self.select_new_vertex()
-                self.add_vertex_to_component(new_vertex, comp_u)
-                comp_u.append((edge_v[0], new_vertex.node_id, edge_v[2], new_vertex.label))
-
-        for edge_u in comp_u:
-            if not any(
-                edge_u[0] == edge_v[0] and edge_u[1] == edge_v[1] and edge_u[2:] == edge_v[2:]
-                for edge_v in comp_v
-            ):
-                # Add missing edge to comp_v
-                new_vertex = self.select_new_vertex()
-                self.add_vertex_to_component(new_vertex, comp_v)
-                comp_v.append((edge_u[0], new_vertex.node_id, edge_u[2], new_vertex.label))
-
-        # Step 3: Generalize labels where needed to ensure perfect matches
-        for i in range(min(len(comp_v), len(comp_u))):
-            edge_v = comp_v[i]
-            edge_u = comp_u[i]
-
-            # Generalize labels to the least specific common ancestor
-            label_v1, label_v2 = edge_v[2], edge_v[3]
-            label_u1, label_u2 = edge_u[2], edge_u[3]
-
-            common_label1 = self.get_least_specific_common_label(label_v1, label_u1)
-            common_label2 = self.get_least_specific_common_label(label_v2, label_u2)
-
-            # Update edges in both components
-            comp_v[i] = (edge_v[0], edge_v[1], common_label1, common_label2)
-            comp_u[i] = (edge_u[0], edge_u[1], common_label1, common_label2)
-            
     def get_least_specific_common_label(self, label1, label2):
         """
         Find the least specific (most general) common label for two given labels.
@@ -477,57 +421,79 @@ class Anonymization(Graph):
             "Professional": 2,
             "Student": 1,
         }
-        
-        # If either label is already the most general, return it
+
+        # If either label is the most general, return it
         if label1 == "*" or label2 == "*":
             return "*"
 
-        # Get generalization levels
-        level1 = self.get_generalization_level(label1)
-        level2 = self.get_generalization_level(label2)
+        # Generalize to the least specific common label
+        if label_hierarchy.get(label1, 0) >= label_hierarchy.get(label2, 0):
+            return label1
+        else:
+            return label2
 
-        # If the levels are the same, the labels themselves are the least specific common labels
-        if level1 == level2:
-            return label1  # Both labels are equivalent in specificity
-        
-        # Find the least specific (most general) label based on hierarchy levels
-        # Traverse the hierarchy to find the common parent
-        reverse_hierarchy = {v: k for k, v in label_hierarchy.items()}
-        least_specific_level = max(level1, level2)  # The more general level
-
-        # Return the corresponding label for the least specific level
-        return reverse_hierarchy.get(least_specific_level, "*")
-
-
-
-    def select_new_vertex(self):
+    def make_isomorphic(self, comp_v, comp_u):
         """
-        Select a new vertex to be added to a component.
-
-        Returns:
-            Node: The selected vertex.
-        """
-        # Prioritize unanonymized vertices with the smallest degree
-        unanonymized = [node for node in self.G_prime.N if not node.Visited]
-        if unanonymized:
-            return min(unanonymized, key=lambda x: (len(x.edges), self.get_generalization_level(x.label)))
-
-        # If all vertices are anonymized, reuse an anonymized vertex
-        anonymized = [node for node in self.G_prime.N if node.Visited]
-        return min(anonymized, key=lambda x: len(x.edges))
-
-    def add_vertex_to_component(self, vertex, component):
-        """
-        Add a vertex to a component by connecting it to other nodes.
+        Modify components to make them isomorphic by adding edges and generalizing labels as needed.
 
         Args:
-            vertex (Node): The vertex to be added.
-            component (list): The component to modify.
+            comp_v (list): Component of NeighborG(v) (list of DFS codes).
+            comp_u (list): Component of NeighborG(u) (list of DFS codes).
         """
-        for edge in component:
-            neighbor_id = edge[1]  # Get the neighbor ID from the edge
-            neighbor = self.G_prime.getNode(neighbor_id)
-            if neighbor:
-                neighbor.addEdge(vertex.node_id)
-                vertex.addEdge(neighbor_id)
-        component.append((vertex.node_id, None, vertex.label, None))
+        # Step 1: Balance the number of vertices
+        while len(comp_v) < len(comp_u):
+            new_vertex = self.select_new_vertex()
+            self.add_vertex_to_component(new_vertex, comp_v)
+        while len(comp_u) < len(comp_v):
+            new_vertex = self.select_new_vertex()
+            self.add_vertex_to_component(new_vertex, comp_u)
+
+        # Step 2: Add edges and generalize labels
+        for i in range(len(comp_v)):
+            edge_v = comp_v[i]
+            edge_u = comp_u[i]
+
+            # Generalize labels only when they differ
+            if edge_v[2] != edge_u[2]:
+                common_label1 = self.get_least_specific_common_label(edge_v[2], edge_u[2])
+            else:
+                common_label1 = edge_v[2]  # Keep the same label if they match
+
+            if edge_v[3] != edge_u[3]:
+                common_label2 = self.get_least_specific_common_label(edge_v[3], edge_u[3])
+            else:
+                common_label2 = edge_v[3]  # Keep the same label if they match
+
+            # Update local components
+            comp_v[i] = (edge_v[0], edge_v[1], common_label1, common_label2)
+            comp_u[i] = (edge_u[0], edge_u[1], common_label1, common_label2)
+
+            # Update the actual Node objects in G_prime to reflect new labels
+            node_v = self.G_prime.getNode(edge_v[0])
+            node_u = self.G_prime.getNode(edge_u[0])
+            if node_v:
+                node_v.label = common_label1
+            if node_u:
+                node_u.label = common_label1
+
+            node_v_neighbor = self.G_prime.getNode(edge_v[1])
+            node_u_neighbor = self.G_prime.getNode(edge_u[1])
+            if node_v_neighbor:
+                node_v_neighbor.label = common_label2
+            if node_u_neighbor:
+                node_u_neighbor.label = common_label2
+
+            # Add edges to ensure structural equivalence
+            if edge_v[1] != edge_u[1]:
+                new_vertex = self.select_new_vertex()
+                self.add_vertex_to_component(new_vertex, comp_v)
+                self.add_vertex_to_component(new_vertex, comp_u)
+
+            
+
+
+
+
+
+
+ 

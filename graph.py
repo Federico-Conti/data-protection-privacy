@@ -3,6 +3,7 @@ class Node:
         self.node_id = node_id
         self.label = label
         self.Visited = False
+        self.Anonymized = False
         self.edges = []  # List to store connected node IDs
         
     def addEdge(self, neighbor_id):
