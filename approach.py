@@ -333,13 +333,13 @@ class Anonymization(Graph):
             candidate_vertices (list[Node]): List of nodes including SeedVertex and its CandidateSet.
         """
         # Step 1: Extract neighborhoods of the candidate vertices
-        neighborhoods = {self._neighborhoods[v] for v in candidate_vertices}
+        neighborhoods = {v : self._neighborhoods[v] for v in candidate_vertices}
 
         # Seed Vertex ncc
-        ncc_v = neighborhoods.popitem()
+        _, ncc_v = next(iter(neighborhoods.items()))
 
         # Candidate Set ncc 
-        for ncc_u in neighborhoods:
+        for _, ncc_u in neighborhoods.items():
             # Match components in NeighborG(v) and NeighborG(u)
             matched_v = set()
             matched_u = set()
@@ -386,13 +386,15 @@ class Anonymization(Graph):
             comp_v (list): First component.
             comp_u (list): Second component.
         """
-        # Create a mapping of nodes from comp_v to comp_u
-        node_mapping = {}
-        for edge_v in comp_v:
-            for edge_u in comp_u:
-                if edge_v[2:] == edge_u[2:]:
-                    node_mapping[edge_v[0]] = edge_u[0]
-                    break
+        # Update the edges in comp_u to match comp_v
+        """
+        Example:    
+            comp_u = [(6, None, 'Eva', None)]
+            comp_v = [(6, 4, 'Eva', 'Linda')]
+        """
+        
+
+       
 
             
 

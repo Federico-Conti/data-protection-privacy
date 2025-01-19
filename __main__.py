@@ -32,11 +32,10 @@ def main():
                 graph.addVertex(node1)
             elif node1.label is None:
                 node1.label = label
-                
-            # Handle the second node
+            
             node2 = graph.getNode(id_2)
             if node2 is None:
-                node2 = Node(id_2, label)
+                node2 = Node(id_2, None)
                 graph.addVertex(node2)
             
             node1.addEdge(id_2)
