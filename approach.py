@@ -165,9 +165,16 @@ class Anonymization(Graph):
                 dfs_code.sort(key=generalized_sort_key)
                 
                 NCC.append(dfs_code)
-
+            '''
+            N{          
+             0:   [(1, 2, 'Student', Anna), (2, 3, 'Student', Anna), (3, 1, 'Student', Anna)]
+             1:   [(2, 3, 'Student', None),(3, 4, 'Student', None),(4, 5, 'Student', None)]
+            }
+            '''
             # Sort canonical labels by the defined neighborhood component order
-            NCC.sort(key=lambda x: (len(x), sum(len(edge) for edge in x), x))
+            NCC.sort(key=lambda comp: (len({edge[0] for edge in comp}.union({edge[1] for edge in comp if edge[1] is not None})),
+                                        1 if len(comp) == 1 and any(edge[1] is None for edge in comp) else 0, 
+                                        comp))
             
             # Store the sorted Neighborhood Component Code (NCC)
             self._neighborhoods[node] = NCC
@@ -290,7 +297,12 @@ class Anonymization(Graph):
                     continue
 
                 # Skip calculation if nodes are missing
-                if edge_u[1] is None or edge_v[1] is None:
+                if edge_u[1] is None and edge_v[1] is None:
+                    # Compute cost based on label generalization and vertex addition
+                    label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
+                    vertex_addition_cost = 0  # Penalty for standalone nodes
+                    match_cost = label_cost + vertex_addition_cost
+                elif edge_u[1] is None or edge_v[1] is None:
                     # Compute cost based on label generalization and vertex addition
                     label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
                     vertex_addition_cost = 1  # Penalty for standalone nodes
@@ -339,7 +351,7 @@ class Anonymization(Graph):
         _, ncc_v = next(iter(neighborhoods.items()))
 
         # Candidate Set ncc 
-        for _, ncc_u in neighborhoods.items():
+        for _, ncc_u in list(neighborhoods.items())[1:]:
             # Match components in NeighborG(v) and NeighborG(u)
             matched_v = set()
             matched_u = set()
@@ -389,11 +401,12 @@ class Anonymization(Graph):
         # Update the edges in comp_u to match comp_v
         """
         Example:    
-            comp_u = [(6, None, 'Eva', None)]
+            comp_u = [(7, None, 'Brian', None)]
             comp_v = [(6, 4, 'Eva', 'Linda')]
         """
         def add_node_to_component():
             NotImplemented
+            
         
         def add_edge_to_component():
             NotImplemented
@@ -413,7 +426,7 @@ class Anonymization(Graph):
         # Add missing nodes to comp_u to match comp_v
         if len(nodes_v) > len(nodes_u):
             while len(nodes_v) > len(nodes_u):
-                add_node_to_component()
+                add_node_to_component(node_v,node_u,comp_v,comp_u)
         else:
             while len(nodes_u) > len(nodes_v):
                 add_node_to_component()
