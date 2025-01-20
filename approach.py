@@ -7,6 +7,13 @@ class Anonymization(Graph):
         self.G = G
         self.G_prime = self.G
         self._neighborhoods = {}
+        self.anonymized_groups = []
+        
+    
+    def insert_anonymized_group(self, group):
+        self.anonymized_groups.append(group)
+        
+    
 
     def extract_components(self,node):
         neighbors = [self.G_prime.getNode(neighbor_id) for neighbor_id in node.edges]
@@ -404,8 +411,42 @@ class Anonymization(Graph):
             comp_u = [(7, None, 'Brian', None)]
             comp_v = [(6, 4, 'Eva', 'Linda')]
         """
-        def add_node_to_component():
-            NotImplemented
+        def add_node_to_component(node_v, node_u, comp_v, comp_u):
+            # Step 1: Identify candidates (unanonymized vertices in the graph)
+            candidates = [node for node in self.G_prime.N if not node.Anonymized]
+            
+            # Step 2: Prioritize by smallest degree
+            #NODES_V OR NODES_U IS A SET OF NODES.ID NOT A SINGLE NODE_ID. FIX THE LOGIC.
+            candidates.sort(key=lambda n: (len(n.edges), self.ncp(self.getNode(node_v).label, n.label)))
+            
+            # Step 3: If no unanonymized vertices are found, fallback to anonymized vertices
+            if not candidates:
+                candidates = [node for node in self.G_prime.N if node.Anonymized]
+                candidates.sort(key=lambda n: (len(n.edges), self.ncp(node_v.label, n.label)))
+                
+                if candidates:
+                    selected = candidates[0]
+                    # Mark selected vertex and its group as unanonymized
+                    anonymized_group = None
+                    for idx, group in enumerate(self.anonymized_groups):
+                        if selected in group:
+                            anonymized_group = self.anonymized_groups.pop(idx)
+                            break
+                    if anonymized_group:
+                        for member in anonymized_group:
+                            member.Anonymized = False
+                else:
+                    raise ValueError("No suitable candidate found to add to the component.")
+            else: 
+                # Step 4: Add the selected vertex to the target component
+                selected = candidates[0]
+                
+            for edge in comp_v:
+                if edge[0] == node_v.node_id:
+                    selected.addEdge(edge[1])
+                elif edge[1] == node_v.node_id:
+                    selected.addEdge(edge[0])
+            comp_u.append((selected.node_id, None, selected.label, None))
             
         
         def add_edge_to_component():
@@ -426,7 +467,7 @@ class Anonymization(Graph):
         # Add missing nodes to comp_u to match comp_v
         if len(nodes_v) > len(nodes_u):
             while len(nodes_v) > len(nodes_u):
-                add_node_to_component(node_v,node_u,comp_v,comp_u)
+                add_node_to_component(nodes_v,nodes_u,comp_v,comp_u)
         else:
             while len(nodes_u) > len(nodes_v):
                 add_node_to_component()
