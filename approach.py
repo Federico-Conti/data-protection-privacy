@@ -6,7 +6,6 @@ class Anonymization(Graph):
     def __init__(self, G: Graph):
         self.G = G
         self.G_prime = self.G
-        self._neighborhoods = {}
         self.anonymized_groups = []
         
     
@@ -184,7 +183,8 @@ class Anonymization(Graph):
                                         comp))
             
             # Store the sorted Neighborhood Component Code (NCC)
-            self._neighborhoods[node] = NCC
+            self.G_prime.neighborhoods[node] = NCC
+            self.G_prime.components_vertexes[node] = components
         
     
     def ncp(self, label1, label2):
@@ -226,8 +226,8 @@ class Anonymization(Graph):
             float: The calculated anonymization cost.
         """
         # Get the NCCs for both nodes
-        ncc_u = self._neighborhoods[u]
-        ncc_v = self._neighborhoods[v]
+        ncc_u = self.G_prime.neighborhoods[u]
+        ncc_v = self.G_prime.neighborhoods[v]
 
         # Initialize costs
         label_cost = 0
@@ -352,13 +352,13 @@ class Anonymization(Graph):
             candidate_vertices (list[Node]): List of nodes including SeedVertex and its CandidateSet.
         """
         # Step 1: Extract neighborhoods of the candidate vertices
-        neighborhoods = {v : self._neighborhoods[v] for v in candidate_vertices}
+        neighborhoods = {v : self.G_prime.neighborhoods[v] for v in candidate_vertices}
 
         # Seed Vertex ncc
-        seed_v, ncc_v = next(iter(neighborhoods.items()))
+        _, ncc_v = next(iter(neighborhoods.items()))
 
         # Candidate Set ncc 
-        for seed_u, ncc_u in list(neighborhoods.items())[1:]:
+        for _ , ncc_u in list(neighborhoods.items())[1:]:
             # Match components in NeighborG(v) and NeighborG(u)
             matched_v = set()
             matched_u = set()
@@ -388,16 +388,17 @@ class Anonymization(Graph):
                         best_match = comp_u
 
                 if best_match:
-                    self.make_isomorphic(comp_v, best_match,seed_v,seed_u)
+                    self.make_isomorphic(comp_v, best_match)
                     unmatched_u.remove(best_match)
+        
                     
         # Mark the vertices in the neighborhoods as anonymized
         for node in candidate_vertices:
             node.Anonymized = True
-        self.extract_neighborhoods()
+        self.extract_neighborhoods() #restract NCC
 
    
-    def make_isomorphic(self, comp_v, comp_u,seed_v,seed_u):
+    def make_isomorphic(self, comp_v, comp_u):
         """
         Make two components isomorphic
 
@@ -411,10 +412,7 @@ class Anonymization(Graph):
             comp_u = [(7, None, 'Brian', None)]
             comp_v = [(6, 4, 'Eva', 'Linda')]
         """
-        def add_node_to_component(seed_v,seed_u,node_v, node_u, comp_v, comp_u):
-            
-            vertex_comp_v = seed_v.node_id
-            vertex_comp_u = seed_u.node_id
+        def add_node_to_component(node_v, node_u, comp_v, comp_u):
             
             # Step 1: Identify candidates (unanonymized vertices in the graph)
             candidates = [node for node in self.G_prime.N if not node.Anonymized and node.node_id != vertex_comp_v and node.node_id != vertex_comp_u  and node.node_id not in node_v and node.node_id not in node_u]
@@ -472,7 +470,7 @@ class Anonymization(Graph):
         # Add missing nodes to comp_u to match comp_v
         if len(nodes_v) > len(nodes_u):
             while len(nodes_v) > len(nodes_u):
-                add_node_to_component(seed_v,seed_u,nodes_v,nodes_u,comp_v,comp_u)
+                add_node_to_component(nodes_v,nodes_u,comp_v,comp_u)
         else:
             while len(nodes_u) > len(nodes_v):
                 add_node_to_component()

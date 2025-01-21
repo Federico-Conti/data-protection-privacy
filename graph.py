@@ -1,3 +1,4 @@
+
 class Node:
     def __init__(self, node_id, label):
         self.node_id = node_id
@@ -35,7 +36,9 @@ class Node:
 class Graph:
     def __init__(self):
         self.N = []  # List of Node (Node objects (vertex and edges))
-    
+        self.neighborhoods = {}  # Dictionary to store neighborhoods: key is Node, value is list of NCC
+        self.components_vertexes = {}   # Dictionary to store neighborhoods: key is Node, value is list of Components vertexes--> {Seed:[NOde,Node,Node],}
+        
     def addVertex(self, node: Node):
         self.N.append(node)
 
@@ -46,3 +49,4 @@ class Graph:
                     return node
         return None
 
+        

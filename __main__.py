@@ -50,7 +50,7 @@ def main():
     anon = Anonymization(graph)
     anon.extract_neighborhoods()
     
-    for key, value in anon._neighborhoods.items():
+    for key, value in anon.G_prime.neighborhoods.items():
         print(f"Node: {key.node_id}, Neighborhood: {value}\n")
     print("\n\n\n")
     VertexList = anon.G_prime.N
