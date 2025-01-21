@@ -355,10 +355,10 @@ class Anonymization(Graph):
         neighborhoods = {v : self._neighborhoods[v] for v in candidate_vertices}
 
         # Seed Vertex ncc
-        _, ncc_v = next(iter(neighborhoods.items()))
+        seed_v, ncc_v = next(iter(neighborhoods.items()))
 
         # Candidate Set ncc 
-        for _, ncc_u in list(neighborhoods.items())[1:]:
+        for seed_u, ncc_u in list(neighborhoods.items())[1:]:
             # Match components in NeighborG(v) and NeighborG(u)
             matched_v = set()
             matched_u = set()
@@ -388,7 +388,7 @@ class Anonymization(Graph):
                         best_match = comp_u
 
                 if best_match:
-                    self.make_isomorphic(comp_v, best_match)
+                    self.make_isomorphic(comp_v, best_match,seed_v,seed_u)
                     unmatched_u.remove(best_match)
                     
         # Mark the vertices in the neighborhoods as anonymized
@@ -397,7 +397,7 @@ class Anonymization(Graph):
         self.extract_neighborhoods()
 
    
-    def make_isomorphic(self, comp_v, comp_u):
+    def make_isomorphic(self, comp_v, comp_u,seed_v,seed_u):
         """
         Make two components isomorphic
 
@@ -411,13 +411,18 @@ class Anonymization(Graph):
             comp_u = [(7, None, 'Brian', None)]
             comp_v = [(6, 4, 'Eva', 'Linda')]
         """
-        def add_node_to_component(node_v, node_u, comp_v, comp_u):
+        def add_node_to_component(seed_v,seed_u,node_v, node_u, comp_v, comp_u):
+            
+            vertex_comp_v = seed_v.node_id
+            vertex_comp_u = seed_u.node_id
+            
             # Step 1: Identify candidates (unanonymized vertices in the graph)
-            candidates = [node for node in self.G_prime.N if not node.Anonymized]
+            candidates = [node for node in self.G_prime.N if not node.Anonymized and node.node_id != vertex_comp_v and node.node_id != vertex_comp_u  and node.node_id not in node_v and node.node_id not in node_u]
             
             # Step 2: Prioritize by smallest degree
             #NODES_V OR NODES_U IS A SET OF NODES.ID NOT A SINGLE NODE_ID. FIX THE LOGIC.
-            candidates.sort(key=lambda n: (len(n.edges), self.ncp(self.getNode(node_v).label, n.label)))
+            for node_v_id in nodes_v:
+                candidates.sort(key=lambda n: (len(n.edges), self.ncp(self.G_prime.getNode(node_v_id).label, n.label)))
             
             # Step 3: If no unanonymized vertices are found, fallback to anonymized vertices
             if not candidates:
@@ -467,7 +472,7 @@ class Anonymization(Graph):
         # Add missing nodes to comp_u to match comp_v
         if len(nodes_v) > len(nodes_u):
             while len(nodes_v) > len(nodes_u):
-                add_node_to_component(nodes_v,nodes_u,comp_v,comp_u)
+                add_node_to_component(seed_v,seed_u,nodes_v,nodes_u,comp_v,comp_u)
         else:
             while len(nodes_u) > len(nodes_v):
                 add_node_to_component()
