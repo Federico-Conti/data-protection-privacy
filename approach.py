@@ -430,21 +430,21 @@ class Anonymization(Graph):
                     self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
                     unmatched_candidate.remove(best_match)
 
-        # Step 3: Ensure all vertices in the anonymized group have the same label
+        # # Step 3: Ensure all vertices in the anonymized group have the same label
         
-        # Find the vertex in candidate vertices with the max label level
-        max_label_vertex = max(candidate_vertices, key=lambda node: self.get_generalization_level(node.label))
-        max_label_level = self.get_generalization_level(max_label_vertex.label)
+        # # Find the vertex in candidate vertices with the max label level
+        # max_label_vertex = max(candidate_vertices, key=lambda node: self.get_generalization_level(node.label))
+        # max_label_level = self.get_generalization_level(max_label_vertex.label)
 
-        # If max label level is 0, take the level 1 in the hierarchy
-        if max_label_level == 0:
-            new_label = next(key for key, value in self.label_hierarchy.items() if value == 1)
-        else:
-            new_label = max_label_vertex.label
+        # # If max label level is 0, take the level 1 in the hierarchy
+        # if max_label_level == 0:
+        #     new_label = next(key for key, value in self.label_hierarchy.items() if value == 1)
+        # else:
+        #     new_label = max_label_vertex.label
 
-        # Set all candidate vertices' labels to the new label
-        for node in candidate_vertices:
-            node.label = new_label
+        # # Set all candidate vertices' labels to the new label
+        # for node in candidate_vertices:
+        #     node.label = new_label
         # Re-extract neighborhoods after anonymization
         self.extract_neighborhoods()
 
@@ -508,8 +508,8 @@ class Anonymization(Graph):
                     current_v.label = current_u.label = self.get_best_generalization_label(current_v.label, current_u.label)
 
                 # Match neighbors within the component
-                neighbors_v = set(current_v.getEdgesInComponent(comp_v)) - visited_v
-                neighbors_u = set(current_u.getEdgesInComponent(comp_u)) - visited_u
+                neighbors_v = set(current_v.getEdgesInComponent(comp_v)) - visited_v - set([node.node_id for node in queue_v])
+                neighbors_u = set(current_u.getEdgesInComponent(comp_u)) - visited_u - set([node.node_id for node in queue_u])
                 flag = True
 
                 while len(neighbors_v) > len(neighbors_u) and flag:
@@ -538,17 +538,25 @@ class Anonymization(Graph):
             # Step 1: Find candidates (exclude owning node and neighbors)
             candidates = [
                 node for node in self.G_prime.N
-                if not node.Anonymized and node.node_id != seed_vertex.node_id and node.node_id != candidate_vertex.node_id and node.node_id not in owning_node.edges
+                if not node.Anonymized 
+                and node.node_id != seed_vertex.node_id 
+                and node.node_id != candidate_vertex.node_id 
+                and node.node_id 
+                not in owning_node.edges
             ]
 
             # Step 2: Prioritize by smallest degree and label proximity
-            # candidates.sort(key=lambda n: (len(n.edges), self.ncp(target_node.label, n.label)))
+            candidates.sort(key=lambda n: (len(n.edges), self.ncp(target_node.label, n.label)))
 
             # Step 3: Fallback to anonymized nodes if no suitable candidate is found
             if not candidates:
                 candidates = [
                     node for node in self.G_prime.N
-                    if node.Anonymized and node.node_id != seed_vertex.node_id and node.node_id != candidate_vertex.node_id and node.node_id not in owning_node.edges
+                    if node.Anonymized 
+                    and node.node_id != seed_vertex.node_id 
+                    and node.node_id != candidate_vertex.node_id 
+                    and node.node_id 
+                    not in owning_node.edges
                 ]
                 candidates.sort(key=lambda n: len(n.edges))
                 if candidates:
@@ -569,7 +577,7 @@ class Anonymization(Graph):
 
             # Step 4: Add the selected node to the target component
                 neighbors.add(selected.node_id)
-                target_comp.append(selected)
+                # target_comp.append(selected)
                 target_node.addEdge(selected.node_id)
                 selected.addEdge(target_node.node_id)
                 candidate_vertex.addEdge(selected.node_id)
