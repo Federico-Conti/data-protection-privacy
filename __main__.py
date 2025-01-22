@@ -67,18 +67,22 @@ def main():
 
         # Create candidate set
         if len(VertexListCopy) >= 2 * k - 1:
-            CandidateSet = []
-            for _, v in costs:
-                if v.node_id not in SeedVertex.edges:
-                    CandidateSet.append(v)
-                if len(CandidateSet) == k - 1:
-                    break
+            CandidateSet = [v for _, v in costs[:k - 1]]
         else:
             CandidateSet = VertexListCopy
         
         print(f"Seed Vertex: {SeedVertex.node_id}, Candidate Set: {[v.node_id for v in CandidateSet]}")
+        
         # Anonymize the neighborhoods
-        anon.anonymize_neighborhoods([SeedVertex] + CandidateSet)
+        # Anonymize Neighbor(SeedVertex) and Neighbor(u1)
+        anon.anonymize_neighborhoods([SeedVertex] + [CandidateSet[0]])
+
+        # Anonymize Neighbor(uj) and {Neighbor(SeedVertex), Neighbor(u1), ..., Neighbor(uj-1)}
+        for j in range(1, len(CandidateSet)):
+            anon.anonymize_neighborhoods([CandidateSet[j]] + [SeedVertex] + CandidateSet[:j])
+
+  
+        
         anon.anonymized_groups.append([SeedVertex] + CandidateSet)
         
         for node in anon.G_prime.N:
@@ -87,6 +91,7 @@ def main():
         print("\nnodes after anonymization")
         for node in [SeedVertex] + CandidateSet:
             print(node)
+            print(anon.G_prime.neighborhoods[node].NCC)
         print("\n") 
         # Update VertexList
         VertexListCopy = [v for v in anon.G_prime.N if v.Anonymized == False]

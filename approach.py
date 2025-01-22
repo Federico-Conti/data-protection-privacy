@@ -513,12 +513,13 @@ class Anonymization(Graph):
                 while len(neighbors_u) > len(neighbors_v):
                     add_node_to_component(comp_u, comp_v, current_v, neighbors_v)
 
+                # Nodi che non sono stati acnora generalizzati con le label
                 queue_v.extend(self.G_prime.getNode(neighbor_id) for neighbor_id in neighbors_v)
                 queue_u.extend(self.G_prime.getNode(neighbor_id) for neighbor_id in neighbors_u)
                    
 
 
-        def add_node_to_component(source_comp, target_comp, target_node, queue, neighbors):
+        def add_node_to_component(source_comp, target_comp, target_node, neighbors):
             """
             Add a missing node to a target component.
 
@@ -562,12 +563,12 @@ class Anonymization(Graph):
                 selected = candidates[0]
 
             # Step 4: Add the selected node to the target component
-            neighbors.add(selected.node_id)
-            target_comp.append(selected)
-            target_node.addEdge(selected.node_id)
-            selected.addEdge(target_node.node_id)
-            candidate_vertex.addEdge(selected.node_id)
-            selected.addEdge(candidate_vertex.node_id)
+                neighbors.add(selected.node_id)
+                target_comp.append(selected)
+                target_node.addEdge(selected.node_id)
+                selected.addEdge(target_node.node_id)
+                candidate_vertex.addEdge(selected.node_id)
+                selected.addEdge(candidate_vertex.node_id)
 
         # Step 1: Find starting nodes for BFS
         start_v, start_u = find_starting_nodes()
