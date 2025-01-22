@@ -4,7 +4,7 @@ import pandas as pd
 import csv
 
 # Define the path to your CSV file
-csv_file_path = 'real.csv'
+csv_file_path = 'test.csv'
 
 data = {"id_1": [], "id_2": [], "label": []}
 

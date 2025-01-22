@@ -82,8 +82,8 @@ def main():
             candidate_vertices = [CandidateSet[j]] + [SeedVertex] + CandidateSet[:j]
             anon.anonymize_neighborhoods(candidate_vertices)
             
-        for node in [SeedVertex] + CandidateSet:
-            node.Anonymized = True
+            for node in candidate_vertices:
+                node.Anonymized = True
                     # Mark all candidate vertices as anonymized
         anon.anonymized_groups.append([SeedVertex] + CandidateSet)
         
