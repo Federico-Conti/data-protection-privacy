@@ -1,18 +1,13 @@
-from graph import Graph, Node
+from graph import Graph, Node, Neighborhood
 
 class Anonymization(Graph):
 
     
-    def __init__(self, G: Graph):
+    def __init__(self, G: Graph, k: int):
         self.G = G
         self.G_prime = self.G
-        self.anonymized_groups = []
+        self.k = k
         
-    
-    def insert_anonymized_group(self, group):
-        self.anonymized_groups.append(group)
-        
-    
 
     def extract_components(self,node):
         neighbors = [self.G_prime.getNode(neighbor_id) for neighbor_id in node.edges]
@@ -162,29 +157,28 @@ class Anonymization(Graph):
         for node in self.G_prime.N:
             components = self.extract_components(node)
 
-            NCC = []
-            # Get the DFS code for each component of the node and sort them
+            # Create a list of tuples (component, DFS code)
+            component_to_dfs = []
             for component in components:
                 dfs_code = self.getBestComponentDFS(component)
-                
                 # Sort the DFS code edges based on generalization and attributes
                 dfs_code.sort(key=generalized_sort_key)
-                
-                NCC.append(dfs_code)
-            '''
-            N{          
-             0:   [(1, 2, 'Student', Anna), (2, 3, 'Student', Anna), (3, 1, 'Student', Anna)]
-             1:   [(2, 3, 'Student', None),(3, 4, 'Student', None),(4, 5, 'Student', None)]
-            }
-            '''
-            # Sort canonical labels by the defined neighborhood component order
-            NCC.sort(key=lambda comp: (len({edge[0] for edge in comp}.union({edge[1] for edge in comp if edge[1] is not None})),
-                                        1 if len(comp) == 1 and any(edge[1] is None for edge in comp) else 0, 
-                                        comp))
-            
-            # Store the sorted Neighborhood Component Code (NCC)
-            self.G_prime.neighborhoods[node] = NCC
-            self.G_prime.components_vertexes[node] = components
+                component_to_dfs.append((component, dfs_code))
+
+            # Sort the list of (component, DFS code) by neighborhood component order
+            component_to_dfs.sort(key=lambda item: (
+                len({edge[0] for edge in item[1]}.union({edge[1] for edge in item[1] if edge[1] is not None})),  # Size of the component
+                1 if len(item[1]) == 1 and any(edge[1] is None for edge in item[1]) else 0,  # Single-node component handling
+                item[1]  # Lexicographical order of DFS code
+            ))
+
+            # Separate the sorted components and their DFS codes
+            sorted_components = [item[0] for item in component_to_dfs]
+            sorted_NCC = [item[1] for item in component_to_dfs]
+
+            # Store the neighborhood using the updated mapping
+            neighborhood = Neighborhood(sorted_components, sorted_NCC)
+            self.G_prime.neighborhoods[node] = neighborhood
         
     
     def ncp(self, label1, label2):
@@ -225,30 +219,30 @@ class Anonymization(Graph):
         Returns:
             float: The calculated anonymization cost.
         """
-        # Get the NCCs for both nodes
-        ncc_u = self.G_prime.neighborhoods[u]
-        ncc_v = self.G_prime.neighborhoods[v]
+        # Retrieve Neighborhood objects for nodes u and v
+        neighborhood_u = self.G_prime.neighborhoods[u]
+        neighborhood_v = self.G_prime.neighborhoods[v]
 
         # Initialize costs
         label_cost = 0
         edge_cost = 0
         vertex_addition_cost = 0
 
-        # Mark components as matched
+        # Track matched components by their indices
         matched_u = set()
         matched_v = set()
 
-        # Greedy matching of components
-        for i, comp_u in enumerate(ncc_u):
+        # Greedy matching of components using DFS codes
+        for i, dfs_u in enumerate(neighborhood_u.NCC):
             best_match_cost = float('inf')
             best_match_idx = None
 
-            for j, comp_v in enumerate(ncc_v):
+            for j, dfs_v in enumerate(neighborhood_v.NCC):
                 if j in matched_v:  # Skip already matched components
                     continue
 
-                # Compute the cost of matching comp_u and comp_v
-                match_cost = self.match_components_cost(comp_u, comp_v)
+                # Compute the cost of matching the two components
+                match_cost = self.match_components_cost(dfs_u, dfs_v)
 
                 # Track the best match
                 if match_cost < best_match_cost:
@@ -259,63 +253,61 @@ class Anonymization(Graph):
             if best_match_idx is not None:
                 matched_u.add(i)
                 matched_v.add(best_match_idx)
-                label_cost += best_match_cost  # Add the label cost of this match
+                label_cost += best_match_cost
 
         # Handle unmatched components in u
-        for i, comp_u in enumerate(ncc_u):
+        for i, dfs_u in enumerate(neighborhood_u.NCC):
             if i not in matched_u:
-                label_cost += self.generalization_cost(comp_u)
-                edge_cost += len(comp_u)  # Edges needed to link this unmatched component
+                label_cost += self.generalization_cost(dfs_u)
+                edge_cost += len(dfs_u)  # Edges needed to link this unmatched component
 
         # Handle unmatched components in v
-        for j, comp_v in enumerate(ncc_v):
+        for j, dfs_v in enumerate(neighborhood_v.NCC):
             if j not in matched_v:
-                label_cost += self.generalization_cost(comp_v)
-                edge_cost += len(comp_v)  # Edges needed to link this unmatched component
+                label_cost += self.generalization_cost(dfs_v)
+                edge_cost += len(dfs_v)  # Edges needed to link this unmatched component
 
         # Compute vertex addition cost
-        size_u = sum(len(comp) for comp in ncc_u)
-        size_v = sum(len(comp) for comp in ncc_v)
+        size_u = sum(len(component) for component in neighborhood_u.components)
+        size_v = sum(len(component) for component in neighborhood_v.components)
         vertex_addition_cost = abs(size_u - size_v)
 
         # Total cost calculation
         total_cost = alpha * label_cost + beta * edge_cost + gamma * vertex_addition_cost
         return total_cost
-    
-    def match_components_cost(self, comp_u, comp_v):
+
+
+    def match_components_cost(self, dfs_u, dfs_v):
         """
-        Compute the cost of matching two components.
+        Compute the cost of matching two components using their DFS codes.
 
         Args:
-            comp_u (list): First component (list of DFS codes).
-            comp_v (list): Second component (list of DFS codes).
+            dfs_u (list): First component's DFS code.
+            dfs_v (list): Second component's DFS code.
 
         Returns:
             float: The cost of matching the two components.
         """
         cost = 0
+        matched_v = set()  # Track matched edges in dfs_v
 
-        # Greedy matching of vertices within the components
-        matched_v = set()
-        for edge_u in comp_u:
+        # Greedy matching of edges within the components
+        for edge_u in dfs_u:
             best_match_cost = float('inf')
-            for edge_v in comp_v:
+            for edge_v in dfs_v:
                 if edge_v in matched_v:  # Skip already matched edges
                     continue
 
-                # Skip calculation if nodes are missing
+                # Compute label cost and degree cost for matching edges
                 if edge_u[1] is None and edge_v[1] is None:
-                    # Compute cost based on label generalization and vertex addition
                     label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
-                    vertex_addition_cost = 0  # Penalty for standalone nodes
+                    vertex_addition_cost = 0
                     match_cost = label_cost + vertex_addition_cost
                 elif edge_u[1] is None or edge_v[1] is None:
-                    # Compute cost based on label generalization and vertex addition
                     label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
-                    vertex_addition_cost = 1  # Penalty for standalone nodes
+                    vertex_addition_cost = 1
                     match_cost = label_cost + vertex_addition_cost
                 else:
-                    # Compute the cost of matching edge_u and edge_v
                     label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
                     degree_cost = abs(len(self.G_prime.getNode(edge_u[1]).edges) - len(self.G_prime.getNode(edge_v[1]).edges))
                     match_cost = label_cost + degree_cost
@@ -329,18 +321,19 @@ class Anonymization(Graph):
 
         return cost
 
-    def generalization_cost(self, comp):
+
+    def generalization_cost(self, dfs_code):
         """
-        Compute the generalization cost for a single component.
+        Compute the generalization cost for a single component's DFS code.
 
         Args:
-            comp (list): Component (list of DFS codes).
+            dfs_code (list): DFS code of the component.
 
         Returns:
             float: The generalization cost for the component.
         """
         cost = 0
-        for edge in comp:
+        for edge in dfs_code:
             cost += self.ncp(edge[2], '*') + self.ncp(edge[3], '*')  # Generalize to the most abstract label
         return cost
     
@@ -351,131 +344,210 @@ class Anonymization(Graph):
         Args:
             candidate_vertices (list[Node]): List of nodes including SeedVertex and its CandidateSet.
         """
-        # Step 1: Extract neighborhoods of the candidate vertices
-        neighborhoods = {v : self.G_prime.neighborhoods[v] for v in candidate_vertices}
+        # Step 1: Extract neighborhoods for the candidate vertices
+        neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
 
-        # Seed Vertex ncc
-        _, ncc_v = next(iter(neighborhoods.items()))
+        # Seed Vertex's neighborhood
+        seed_vertex, seed_neighborhood = next(iter(neighborhoods.items()))
 
-        # Candidate Set ncc 
-        for _ , ncc_u in list(neighborhoods.items())[1:]:
-            # Match components in NeighborG(v) and NeighborG(u)
-            matched_v = set()
-            matched_u = set()
+        # Iterate over Candidate Set's neighborhoods
+        for candidate_vertex, candidate_neighborhood in list(neighborhoods.items())[1:]:
+            matched_seed = set()
+            matched_candidate = set()
 
-            # Step 2.1: Match perfectly matched components
-            for i, comp_v in enumerate(ncc_v):
-                for j, comp_u in enumerate(ncc_u):
-                    if j in matched_u:
+            # Step 2.1: Perfectly match components
+            for i, (seed_comp, seed_dfs) in enumerate(zip(seed_neighborhood.components, seed_neighborhood.NCC)):
+                for j, (candidate_comp, candidate_dfs) in enumerate(zip(candidate_neighborhood.components, candidate_neighborhood.NCC)):
+                    if j in matched_candidate:
                         continue
-                    if len(comp_v) == len(comp_u) and all(edge_v[2:] == edge_u[2:] for edge_v, edge_u in zip(comp_v, comp_u)):
-                        matched_v.add(i)
-                        matched_u.add(j)
+                    if len(seed_dfs) == len(candidate_dfs) and all(
+                        edge_s[2:] == edge_c[2:] for edge_s, edge_c in zip(seed_dfs, candidate_dfs)
+                    ):
+                        matched_seed.add(i)
+                        matched_candidate.add(j)
                         break
 
             # Step 2.2: Handle unmatched components
-            unmatched_v = [comp_v for i, comp_v in enumerate(ncc_v) if i not in matched_v]
-            unmatched_u = [comp_u for j, comp_u in enumerate(ncc_u) if j not in matched_u]
-            
-            
-            for comp_v in unmatched_v:  
+            unmatched_seed = [
+                (seed_neighborhood.components[i], seed_neighborhood.NCC[i])
+                for i in range(len(seed_neighborhood.NCC)) if i not in matched_seed
+            ]
+            unmatched_candidate = [
+                (candidate_neighborhood.components[j], candidate_neighborhood.NCC[j])
+                for j in range(len(candidate_neighborhood.NCC)) if j not in matched_candidate
+            ]
+
+            for seed_comp, seed_dfs in unmatched_seed:
                 best_match_cost = float('inf')
                 best_match = None
-                for comp_u in unmatched_u:
-                    match_cost = self.match_components_cost(comp_v, comp_u)
+
+                for candidate_comp, candidate_dfs in unmatched_candidate:
+                    match_cost = self.match_components_cost(seed_dfs, candidate_dfs)
                     if match_cost < best_match_cost:
                         best_match_cost = match_cost
-                        best_match = comp_u
+                        best_match = (candidate_comp, candidate_dfs)
 
                 if best_match:
-                    self.make_isomorphic(comp_v, best_match)
-                    unmatched_u.remove(best_match)
-        
-                    
-        # Mark the vertices in the neighborhoods as anonymized
+                    candidate_comp, candidate_dfs = best_match
+                    self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
+                    unmatched_candidate.remove(best_match)
+
+        # Mark all candidate vertices as anonymized
         for node in candidate_vertices:
             node.Anonymized = True
-        self.extract_neighborhoods() #restract NCC
+
+        # Re-extract neighborhoods after anonymization
+        self.extract_neighborhoods()
+
 
    
-    def make_isomorphic(self, comp_v, comp_u):
+    def make_isomorphic(self, comp_v, comp_u, seed_vertex, candidate_vertex):
         """
-        Make two components isomorphic
+        Make two components isomorphic by modifying their structure directly.
 
         Args:
-            comp_v (list): First component.
-            comp_u (list): Second component.
+            comp_v (list[Node]): Component from neighborhood `v` (list of Node objects).
+            comp_u (list[Node]): Component from neighborhood `u` (list of Node objects).
+            dfs_v (list): DFS code of `comp_v`.
+            dfs_u (list): DFS code of `comp_u`.
         """
-        # Update the edges in comp_u to match comp_v
-        """
-        Example:    
-            comp_u = [(7, None, 'Brian', None)]
-            comp_v = [(6, 4, 'Eva', 'Linda')]
-        """
-        def add_node_to_component(node_v, node_u, comp_v, comp_u):
-            
-            # Step 1: Identify candidates (unanonymized vertices in the graph)
-            candidates = [node for node in self.G_prime.N if not node.Anonymized and node.node_id != vertex_comp_v and node.node_id != vertex_comp_u  and node.node_id not in node_v and node.node_id not in node_u]
-            
-            # Step 2: Prioritize by smallest degree
-            #NODES_V OR NODES_U IS A SET OF NODES.ID NOT A SINGLE NODE_ID. FIX THE LOGIC.
-            for node_v_id in nodes_v:
-                candidates.sort(key=lambda n: (len(n.edges), self.ncp(self.G_prime.getNode(node_v_id).label, n.label)))
-            
-            # Step 3: If no unanonymized vertices are found, fallback to anonymized vertices
+
+        def find_starting_nodes():
+            """
+            Identify the starting nodes for BFS traversal from both components.
+            """
+            # Step 1: Find nodes with same degree and label
+            candidates = []
+            for node_v in comp_v:
+                for node_u in comp_u:
+                    if len(node_v.edges) == len(node_u.edges) and node_v.label == node_u.label:
+                        candidates.append((node_v, node_u))
+
+            # Step 2: Prioritize by highest degree
+            if candidates:
+                return max(candidates, key=lambda pair: len(pair[0].edges))
+
+            # Step 3: Relax constraints and calculate anonymization cost
+            best_pair = None
+            best_cost = float('inf')
+            for node_v in comp_v:
+                for node_u in comp_u:
+                    ncp_cost = self.ncp(node_v.label, node_u.label)
+                    degree_cost = abs(len(node_v.edges) - len(node_u.edges))
+                    total_cost = ncp_cost + degree_cost
+                    if total_cost < best_cost:
+                        best_cost = total_cost
+                        best_pair = (node_v, node_u)
+
+            return best_pair
+
+        def bfs_and_match(node_v, node_u):
+            """
+            Perform BFS on both components and match their structure.
+
+            Args:
+                node_v (Node): Starting node in `comp_v`.
+                node_u (Node): Starting node in `comp_u`.
+            """
+            queue_v = [node_v]
+            queue_u = [node_u]
+            visited_v = set()
+            visited_u = set()
+
+            while queue_v and queue_u:
+                current_v = queue_v.pop(0)
+                current_u = queue_u.pop(0)
+
+                visited_v.add(current_v.node_id)
+                visited_u.add(current_u.node_id)
+
+                # Step 1: Check and generalize labels
+                if current_v.label != current_u.label:
+                    current_u.label = '*'
+
+                # Step 2: Match neighbors
+                neighbors_v = set(current_v.edges) - visited_v
+                neighbors_u = set(current_u.edges) - visited_u
+
+                # Add missing nodes to `comp_u`
+                while len(neighbors_v) > len(neighbors_u):
+                    add_node_to_component(comp_v, comp_u, current_u, neighbors_u, candidate_vertex)
+                    neighbors_u.add(next(iter(neighbors_v - neighbors_u)))
+
+                # Add missing nodes to `comp_v`
+                while len(neighbors_u) > len(neighbors_v):
+                    add_node_to_component(comp_u, comp_v, current_v, neighbors_v, seed_vertex)
+                    neighbors_v.add(next(iter(neighbors_u - neighbors_v)))
+
+                # Add missing edges and queue neighbors
+                for neighbor_v, neighbor_u in zip(sorted(neighbors_v), sorted(neighbors_u)):
+                    node_neighbor_v = self.G_prime.getNode(neighbor_v)
+                    node_neighbor_u = self.G_prime.getNode(neighbor_u)
+
+                    # Prevent self-loops
+                    if neighbor_v != current_u.node_id and neighbor_v not in current_u.edges:
+                        current_u.addEdge(neighbor_v)
+                    if neighbor_u != current_v.node_id and neighbor_u not in current_v.edges:
+                        current_v.addEdge(neighbor_u)
+
+                    queue_v.append(node_neighbor_v)
+                    queue_u.append(node_neighbor_u)
+
+
+        def add_node_to_component(source_comp, target_comp, target_node, neighbors, owning_node):
+            """
+            Add a missing node to a target component.
+
+            Args:
+                source_comp (list[Node]): Source component.
+                target_comp (list[Node]): Target component.
+                target_node (Node): Node in the target component to which the new node will connect.
+                neighbors (set): Set of existing neighbors in the target component.
+                owning_node (Node): Node that owns the target component.
+            """
+            # Step 1: Find candidates (exclude owning node and neighbors)
+            candidates = [
+                node for node in self.G_prime.N
+                if not node.Anonymized and node.node_id not in neighbors and node != owning_node
+            ]
+
+            # Step 2: Prioritize by smallest degree and label proximity
+            candidates.sort(key=lambda n: (len(n.edges), self.ncp(target_node.label, n.label)))
+
+            # Step 3: Fallback to anonymized nodes if no suitable candidate is found
             if not candidates:
-                candidates = [node for node in self.G_prime.N if node.Anonymized]
-                candidates.sort(key=lambda n: (len(n.edges), self.ncp(node_v.label, n.label)))
-                
+                candidates = [
+                    node for node in self.G_prime.N
+                    if node.Anonymized and node.node_id not in neighbors and node != owning_node
+                ]
+                candidates.sort(key=lambda n: len(n.edges))
                 if candidates:
                     selected = candidates[0]
-                    # Mark selected vertex and its group as unanonymized
-                    anonymized_group = None
-                    for idx, group in enumerate(self.anonymized_groups):
-                        if selected in group:
-                            anonymized_group = self.anonymized_groups.pop(idx)
-                            break
-                    if anonymized_group:
-                        for member in anonymized_group:
-                            member.Anonymized = False
+                    group = [selected] + [
+                        self.G_prime.getNode(neighbor)
+                        for neighbor in selected.edges[:self.k - 1]
+                        if self.G_prime.getNode(neighbor)
+                    ]
+                    for member in group:
+                        member.Anonymized = False
                 else:
                     raise ValueError("No suitable candidate found to add to the component.")
-            else: 
-                # Step 4: Add the selected vertex to the target component
+            else:
                 selected = candidates[0]
-                
-            for edge in comp_v:
-                if edge[0] == node_v.node_id:
-                    selected.addEdge(edge[1])
-                elif edge[1] == node_v.node_id:
-                    selected.addEdge(edge[0])
-            comp_u.append((selected.node_id, None, selected.label, None))
-            
-        
-        def add_edge_to_component():
-            NotImplemented
-            
-        def generalize_labels():
-            NotImplemented
-        
-        """
-            1. Add missing nodes	
-            2. Add edges to make the structure the same
-            3. Generalize labels to make them the same if they were not already
-        """	
-        
-        nodes_v = {edge[0] for edge in comp_v}.union({edge[1] for edge in comp_v if edge[1] is not None})
-        nodes_u = {edge[0] for edge in comp_u}.union({edge[1] for edge in comp_u if edge[1] is not None})
-        
-        # Add missing nodes to comp_u to match comp_v
-        if len(nodes_v) > len(nodes_u):
-            while len(nodes_v) > len(nodes_u):
-                add_node_to_component(nodes_v,nodes_u,comp_v,comp_u)
-        else:
-            while len(nodes_u) > len(nodes_v):
-                add_node_to_component()
-                
-        # Add missing edges to comp_u to match comp_v
+
+            # Step 4: Add the selected node to the target component
+            target_comp.append(selected)
+
+            # Prevent self-loops
+            if selected.node_id != target_node.node_id:
+                target_node.addEdge(selected.node_id)
+
+        # Step 1: Find starting nodes for BFS
+        start_v, start_u = find_starting_nodes()
+
+        # Step 2: Perform BFS and modify components
+        bfs_and_match(start_v, start_u)
+
         
         
 

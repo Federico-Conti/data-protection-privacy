@@ -47,12 +47,9 @@ def main():
     print("\n\n")
 
     # PREPARE PHASE: Extract neighborhoods and sort vertices by induced subgraph size
-    anon = Anonymization(graph)
+    anon = Anonymization(graph,k)
     anon.extract_neighborhoods()
     
-    for key, value in anon.G_prime.neighborhoods.items():
-        print(f"Node: {key.node_id}, Neighborhood: {value}\n")
-    print("\n\n\n")
     VertexList = anon.G_prime.N
     VertexList.sort(key=lambda node: node.induced_subgraph_size(anon.G_prime), reverse=True)  # Descending order
     # for v in VertexList:
@@ -78,7 +75,6 @@ def main():
         print(f"Seed Vertex: {SeedVertex.node_id}, Candidate Set: {[v.node_id for v in CandidateSet]}")
         # Anonymize the neighborhoods
         anon.anonymize_neighborhoods([SeedVertex] + CandidateSet)
-        anon.insert_anonymized_group([SeedVertex] + CandidateSet)
         for node in anon.G_prime.N:
             print(f"Node {node.node_id} anonymized: {node.Anonymized}")
             

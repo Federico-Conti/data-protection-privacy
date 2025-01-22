@@ -31,13 +31,19 @@ class Node:
         return neighbor_id in self.edges
 
     def __repr__(self):
-        return f"Node(id={self.node_id}, label={self.label}, edges={self.edges})"
+        return f"Node(id={self.node_id}, label={self.label}, edges={self.edges}, count_edges={len(self.edges)})"
+    
+class Neighborhood:
+    def __init__(self, components, NCC):
+        self.components = components
+        self.NCC = NCC  # List of nodes in the neighborhood
+        
+   
 
 class Graph:
     def __init__(self):
         self.N = []  # List of Node (Node objects (vertex and edges))
         self.neighborhoods = {}  # Dictionary to store neighborhoods: key is Node, value is list of NCC
-        self.components_vertexes = {}   # Dictionary to store neighborhoods: key is Node, value is list of Components vertexes--> {Seed:[NOde,Node,Node],}
         
     def addVertex(self, node: Node):
         self.N.append(node)
