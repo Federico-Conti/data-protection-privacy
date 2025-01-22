@@ -426,8 +426,6 @@ class Anonymization(Graph):
                     self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
                     unmatched_candidate.remove(best_match)
 
-        
-
         # Re-extract neighborhoods after anonymization
         self.extract_neighborhoods()
 
@@ -440,21 +438,33 @@ class Anonymization(Graph):
         Args:
             comp_v (list[Node]): Component from neighborhood `v` (list of Node objects).
             comp_u (list[Node]): Component from neighborhood `u` (list of Node objects).
-            dfs_v (list): DFS code of `comp_v`.
-            dfs_u (list): DFS code of `comp_u`.
         """
 
         def find_starting_nodes():
-                """Find the best matching nodes to start the BFS traversal."""
-                candidates = []
-                for node_v in comp_v:
-                    for node_u in comp_u:
-                        if len(list(node_v.getEdgesInComponent(comp_v))) == len(list(node_u.getEdgesInComponent(comp_u))) and node_v.label == node_u.label:
-                            candidates.append((node_v, node_u))
-    
-                if candidates:
-                    return max(candidates, key=lambda pair: len(list(pair[0].getEdgesInComponent(comp_v))))
-                return None, None
+            # Find vertices with the same degree and label
+            candidates = []
+            for node_v in comp_v:
+                for node_u in comp_u:
+                    if node_v.label == node_u.label and len(node_v.getEdgesInComponent(comp_v)) == len(node_u.getEdgesInComponent(comp_u)):
+                        candidates.append((node_v, node_u))
+
+            # If multiple candidates, choose the pair with the highest degree
+            if candidates:
+                return max(candidates, key=lambda pair: len(pair[0].edges))
+
+            # If no exact match, relax the matching requirement
+            best_pair = None
+            best_cost = float('inf')
+            for node_v in comp_v:
+                for node_u in comp_u:
+                    degree_diff = abs(len(node_v.edges) - len(node_u.edges))
+                    ncp_cost = self.ncp(node_v.label, node_u.label)
+                    total_cost = degree_diff + ncp_cost
+                    if total_cost < best_cost:
+                        best_cost = total_cost
+                        best_pair = (node_v, node_u)
+
+            return best_pair
 
         def bfs_and_match(node_v, node_u):
             """Perform BFS on both components to make them structurally similar."""
@@ -490,20 +500,6 @@ class Anonymization(Graph):
                     add_node_to_component(comp_u, comp_v, current_v, neighbors_v, seed_vertex)
                     neighbors_v.add(next(iter(neighbors_u - neighbors_v)))
 
-                for neighbor_v, neighbor_u in zip(sorted(neighbors_v), sorted(neighbors_u)):
-                    node_neighbor_v = self.G_prime.getNode(neighbor_v)
-                    node_neighbor_u = self.G_prime.getNode(neighbor_u)
-
-                    # Add edges if missing
-                    if neighbor_v not in current_u.edges:
-                        current_u.addEdge(neighbor_v)
-                    if neighbor_u not in current_v.edges:
-                        current_v.addEdge(neighbor_u)
-
-                    queue_v.append(node_neighbor_v)
-                    queue_u.append(node_neighbor_u)
-
-
 
         def add_node_to_component(source_comp, target_comp, target_node, neighbors, owning_node):
             """
@@ -519,7 +515,7 @@ class Anonymization(Graph):
             # Step 1: Find candidates (exclude owning node and neighbors)
             candidates = [
                 node for node in self.G_prime.N
-                if not node.Anonymized and node.node_id not in neighbors and node != owning_node
+                if not node.Anonymized and node.node_id != owning_node.node_id and node.node_id not in [n.node_id for n in target_comp]
             ]
 
             # Step 2: Prioritize by smallest degree and label proximity
@@ -529,7 +525,7 @@ class Anonymization(Graph):
             if not candidates:
                 candidates = [
                     node for node in self.G_prime.N
-                    if node.Anonymized and node.node_id not in neighbors and node != owning_node
+                    if node.Anonymized and node.node_id != owning_node.node_id and node.node_id not in [n.node_id for n in target_comp]
                 ]
                 candidates.sort(key=lambda n: len(n.edges))
                 if candidates:
@@ -554,6 +550,7 @@ class Anonymization(Graph):
             # Prevent self-loops
             if selected.node_id != target_node.node_id:
                 target_node.addEdge(selected.node_id)
+            owning_node.addEdge(selected.node_id)
 
         # Step 1: Find starting nodes for BFS
         start_v, start_u = find_starting_nodes()

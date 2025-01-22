@@ -68,7 +68,12 @@ def main():
 
         # Create candidate set
         if len(VertexListCopy) >= 2 * k - 1:
-            CandidateSet = [v for _, v in costs[:k - 1]]
+            CandidateSet = []
+            for _, v in costs:
+                if v.node_id not in SeedVertex.edges:
+                    CandidateSet.append(v)
+                if len(CandidateSet) == k - 1:
+                    break
         else:
             CandidateSet = VertexListCopy
         

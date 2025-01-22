@@ -12,9 +12,11 @@ class Node:
             self.edges.append(neighbor_id)
             
     def getEdgesInComponent(self, component):
+        edgesInComponent = []
         for e in self.edges:
             if e in [n.node_id for n in component]:
-                yield e
+                edgesInComponent.append(e)
+        return edgesInComponent
             
     def induced_subgraph_size(self,graph):
         neighbors = set(self.edges)  # Nodes directly connected to 'node'
@@ -31,13 +33,12 @@ class Node:
         return neighbor_id in self.edges
 
     def __repr__(self):
-        return f"Node(id={self.node_id})"
+        return f"Node(id={self.node_id}, label={self.label}, edges={self.edges}, count_edges={len(self.edges)})"
     
 class Neighborhood:
     def __init__(self, components, NCC):
         self.components = components
         self.NCC = NCC  # List of nodes in the neighborhood
-        
    
 
 class Graph:
