@@ -513,10 +513,10 @@ class Anonymization(Graph):
                 flag = True
 
                 while len(neighbors_v) > len(neighbors_u) and flag:
-                    flag = add_node_to_component(comp_v, comp_u, current_u, neighbors_u)
+                    flag = add_node_to_component(comp_v, comp_u, current_u, neighbors_u, candidate_vertex)
                     
                 while len(neighbors_u) > len(neighbors_v) and flag:
-                    flag = add_node_to_component(comp_u, comp_v, current_v, neighbors_v)
+                    flag = add_node_to_component(comp_u, comp_v, current_v, neighbors_v, seed_vertex)
 
                 # Nodi che non sono stati acnora generalizzati con le label
                 queue_v.extend(self.G_prime.getNode(neighbor_id) for neighbor_id in neighbors_v)
@@ -524,7 +524,7 @@ class Anonymization(Graph):
                    
 
 
-        def add_node_to_component(source_comp, target_comp, target_node, neighbors):
+        def add_node_to_component(source_comp, target_comp, target_node, neighbors, owning_node):
             """
             Add a missing node to a target component.
 
@@ -538,17 +538,17 @@ class Anonymization(Graph):
             # Step 1: Find candidates (exclude owning node and neighbors)
             candidates = [
                 node for node in self.G_prime.N
-                if not node.Anonymized and node.node_id != seed_vertex.node_id and node.node_id != candidate_vertex.node_id and node.node_id not in [n.node_id for n in target_comp]
+                if not node.Anonymized and node.node_id != seed_vertex.node_id and node.node_id != candidate_vertex.node_id and node.node_id not in owning_node.edges
             ]
 
             # Step 2: Prioritize by smallest degree and label proximity
-            candidates.sort(key=lambda n: (len(n.edges), self.ncp(target_node.label, n.label)))
+            # candidates.sort(key=lambda n: (len(n.edges), self.ncp(target_node.label, n.label)))
 
             # Step 3: Fallback to anonymized nodes if no suitable candidate is found
             if not candidates:
                 candidates = [
                     node for node in self.G_prime.N
-                    if node.Anonymized and node.node_id != seed_vertex.node_id and node.node_id != candidate_vertex.node_id and node.node_id not in [n.node_id for n in target_comp]
+                    if node.Anonymized and node.node_id != seed_vertex.node_id and node.node_id != candidate_vertex.node_id and node.node_id not in owning_node.edges
                 ]
                 candidates.sort(key=lambda n: len(n.edges))
                 if candidates:
