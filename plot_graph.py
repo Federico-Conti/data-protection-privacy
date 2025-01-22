@@ -4,7 +4,7 @@ import pandas as pd
 import csv
 
 # Define the path to your CSV file
-csv_file_path = 'result.csv'
+csv_file_path = 'real.csv'
 
 data = {"id_1": [], "id_2": [], "label": []}
 
@@ -28,23 +28,22 @@ df = pd.DataFrame(data)
 # Create a graph
 G = nx.from_pandas_edgelist(df, "id_1", "id_2")
 
-
-
 # Draw the graph
-plt.figure(figsize=(15, 15))
-pos = nx.spring_layout(G, seed=42)  # Spring layout for better visualization
+plt.figure(figsize=(20, 20))  # Increase figure size
+pos = nx.spring_layout(G, seed=42, k=0.5, iterations=50)  # Adjust k and iterations for spacing
 
 # Draw nodes and edges with improved visualization
-nx.draw_networkx_nodes(G, pos, node_size=500, node_color="skyblue")
+nx.draw_networkx_nodes(G, pos, node_size=700, node_color="skyblue")
 nx.draw_networkx_edges(G, pos, edge_color="gray", alpha=0.5)
+
 # Combine node id and label for display
 combined_labels = {row["id_1"]: f'{row["id_1"]}: {row["label"]}' for _, row in df.iterrows()}
 
 # Draw the combined labels
-nx.draw_networkx_labels(G, pos, labels=combined_labels, font_size=10, font_color="black")
+nx.draw_networkx_labels(G, pos, labels=combined_labels, font_size=12, font_color="black")
 
 # Set title and save the graph
-plt.title("Undirected Graph Visualization", fontsize=16)
+plt.title("Undirected Graph Visualization", fontsize=20)
 plt.axis("off")  # Hide the axes for a cleaner look
-plt.savefig("result.png")
-plt.show()
+plt.savefig("before.png")
+
