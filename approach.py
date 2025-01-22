@@ -374,10 +374,7 @@ class Anonymization(Graph):
         Args:
             candidate_vertices (list[Node]): List of nodes including SeedVertex and its CandidateSet.
         """
-        # Mark all candidate vertices as anonymized
-        for node in candidate_vertices:
-            node.Anonymized = True
-        
+
         # Step 1: Extract neighborhoods for the candidate vertices
         neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
 
@@ -410,6 +407,13 @@ class Anonymization(Graph):
                 (candidate_neighborhood.components[j], candidate_neighborhood.NCC[j])
                 for j in range(len(candidate_neighborhood.NCC)) if j not in matched_candidate
             ]
+            
+            # If the number of components in one neighborhood is more than the other, create empty components
+            while len(unmatched_seed) > len(unmatched_candidate):
+                unmatched_candidate.append(([], []))  # Add an empty component to the candidate neighborhood
+
+            while len(unmatched_candidate) > len(unmatched_seed):
+                unmatched_seed.append(([], []))  # Add an empty component to the seed neighborhood
 
             for seed_comp, seed_dfs in unmatched_seed:
                 best_match_cost = float('inf')
@@ -506,12 +510,13 @@ class Anonymization(Graph):
                 # Match neighbors within the component
                 neighbors_v = set(current_v.getEdgesInComponent(comp_v)) - visited_v
                 neighbors_u = set(current_u.getEdgesInComponent(comp_u)) - visited_u
+                flag = True
 
-                while len(neighbors_v) > len(neighbors_u):
-                    add_node_to_component(comp_v, comp_u, current_u, neighbors_u)
+                while len(neighbors_v) > len(neighbors_u) and flag:
+                    flag = add_node_to_component(comp_v, comp_u, current_u, neighbors_u)
                     
-                while len(neighbors_u) > len(neighbors_v):
-                    add_node_to_component(comp_u, comp_v, current_v, neighbors_v)
+                while len(neighbors_u) > len(neighbors_v) and flag:
+                    flag = add_node_to_component(comp_u, comp_v, current_v, neighbors_v)
 
                 # Nodi che non sono stati acnora generalizzati con le label
                 queue_v.extend(self.G_prime.getNode(neighbor_id) for neighbor_id in neighbors_v)
@@ -558,7 +563,7 @@ class Anonymization(Graph):
                             member.Anonymized = False
                         self.anonymized_groups.remove(anonymized_group)
                 else:
-                    raise ValueError("No suitable candidate found to add to the component.")
+                    return False
             else:
                 selected = candidates[0]
 
@@ -569,12 +574,23 @@ class Anonymization(Graph):
                 selected.addEdge(target_node.node_id)
                 candidate_vertex.addEdge(selected.node_id)
                 selected.addEdge(candidate_vertex.node_id)
+                return True
 
-        # Step 1: Find starting nodes for BFS
-        start_v, start_u = find_starting_nodes()
+        if not comp_v:
+            for node in comp_u:
+                seed_vertex.addEdge(node.node_id)
+                node.addEdge(seed_vertex.node_id)
+        elif not comp_u:
+            for node in comp_v:
+                candidate_vertex.addEdge(node.node_id)
+                node.addEdge(candidate_vertex.node_id)
+            
+        else:
+            # Step 1: Find starting nodes for BFS
+            start_v, start_u = find_starting_nodes()
 
-        # Step 2: Perform BFS and modify components
-        bfs_and_match(start_v, start_u)
+            # Step 2: Perform BFS and modify components
+            bfs_and_match(start_v, start_u)
 
         
         

@@ -76,23 +76,19 @@ def main():
         # Anonymize the neighborhoods
         # Anonymize Neighbor(SeedVertex) and Neighbor(u1)
         anon.anonymize_neighborhoods([SeedVertex] + [CandidateSet[0]])
-
+        
         # Anonymize Neighbor(uj) and {Neighbor(SeedVertex), Neighbor(u1), ..., Neighbor(uj-1)}
         for j in range(1, len(CandidateSet)):
-            anon.anonymize_neighborhoods([CandidateSet[j]] + [SeedVertex] + CandidateSet[:j])
-
-  
-        
+            candidate_vertices = [CandidateSet[j]] + [SeedVertex] + CandidateSet[:j]
+            anon.anonymize_neighborhoods(candidate_vertices)
+            for node in candidate_vertices:
+                node.Anonymized = True
+                    # Mark all candidate vertices as anonymized
         anon.anonymized_groups.append([SeedVertex] + CandidateSet)
         
         for node in anon.G_prime.N:
             print(f"Node {node.node_id} anonymized: {node.Anonymized}")
         
-        print("\nnodes after anonymization")
-        for node in [SeedVertex] + CandidateSet:
-            print(node)
-            print(anon.G_prime.neighborhoods[node].NCC)
-        print("\n") 
         # Update VertexList
         VertexListCopy = [v for v in anon.G_prime.N if v.Anonymized == False]
     
