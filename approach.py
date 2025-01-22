@@ -510,13 +510,12 @@ class Anonymization(Graph):
                 # Match neighbors within the component
                 neighbors_v = set(current_v.getEdgesInComponent(comp_v)) - visited_v - set([node.node_id for node in queue_v])
                 neighbors_u = set(current_u.getEdgesInComponent(comp_u)) - visited_u - set([node.node_id for node in queue_u])
-                flag = True
-
-                while len(neighbors_v) > len(neighbors_u) and flag:
-                    flag = add_node_to_component(comp_v, comp_u, current_u, neighbors_u, candidate_vertex)
+    
+                while len(neighbors_v) > len(neighbors_u):
+                    add_node_to_component(comp_v, comp_u, current_u, neighbors_u, candidate_vertex)
                     
-                while len(neighbors_u) > len(neighbors_v) and flag:
-                    flag = add_node_to_component(comp_u, comp_v, current_v, neighbors_v, seed_vertex)
+                while len(neighbors_u) > len(neighbors_v):
+                    add_node_to_component(comp_u, comp_v, current_v, neighbors_v, seed_vertex)
 
                 # Nodi che non sono stati acnora generalizzati con le label
                 queue_v.extend(self.G_prime.getNode(neighbor_id) for neighbor_id in neighbors_v)
@@ -571,18 +570,17 @@ class Anonymization(Graph):
                             member.Anonymized = False
                         self.anonymized_groups.remove(anonymized_group)
                 else:
-                    return False
+                    raise ValueError("No suitable candidate found for anonymization.")
             else:
                 selected = candidates[0]
 
             # Step 4: Add the selected node to the target component
                 neighbors.add(selected.node_id)
-                # target_comp.append(selected)
+                #target_comp.append(selected)
                 target_node.addEdge(selected.node_id)
                 selected.addEdge(target_node.node_id)
                 candidate_vertex.addEdge(selected.node_id)
                 selected.addEdge(candidate_vertex.node_id)
-                return True
 
         if not comp_v:
             for node in comp_u:
