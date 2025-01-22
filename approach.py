@@ -426,6 +426,21 @@ class Anonymization(Graph):
                     self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
                     unmatched_candidate.remove(best_match)
 
+        # Step 3: Ensure all vertices in the anonymized group have the same label
+        
+        # Find the vertex in candidate vertices with the max label level
+        max_label_vertex = max(candidate_vertices, key=lambda node: self.get_generalization_level(node.label))
+        max_label_level = self.get_generalization_level(max_label_vertex.label)
+
+        # If max label level is 0, take the level 1 in the hierarchy
+        if max_label_level == 0:
+            new_label = next(key for key, value in self.label_hierarchy.items() if value == 1)
+        else:
+            new_label = max_label_vertex.label
+
+        # Set all candidate vertices' labels to the new label
+        for node in candidate_vertices:
+            node.label = new_label
         # Re-extract neighborhoods after anonymization
         self.extract_neighborhoods()
 
@@ -493,15 +508,17 @@ class Anonymization(Graph):
                 neighbors_u = set(current_u.getEdgesInComponent(comp_u)) - visited_u
 
                 while len(neighbors_v) > len(neighbors_u):
-                    add_node_to_component(comp_v, comp_u, current_u, neighbors_u, candidate_vertex)
-                    neighbors_u.add(next(iter(neighbors_v - neighbors_u)))
-
+                    add_node_to_component(comp_v, comp_u, current_u, neighbors_u)
+                    
                 while len(neighbors_u) > len(neighbors_v):
-                    add_node_to_component(comp_u, comp_v, current_v, neighbors_v, seed_vertex)
-                    neighbors_v.add(next(iter(neighbors_u - neighbors_v)))
+                    add_node_to_component(comp_u, comp_v, current_v, neighbors_v)
+
+                queue_v.extend(self.G_prime.getNode(neighbor_id) for neighbor_id in neighbors_v)
+                queue_u.extend(self.G_prime.getNode(neighbor_id) for neighbor_id in neighbors_u)
+                   
 
 
-        def add_node_to_component(source_comp, target_comp, target_node, neighbors, owning_node):
+        def add_node_to_component(source_comp, target_comp, target_node, queue, neighbors):
             """
             Add a missing node to a target component.
 
@@ -515,7 +532,7 @@ class Anonymization(Graph):
             # Step 1: Find candidates (exclude owning node and neighbors)
             candidates = [
                 node for node in self.G_prime.N
-                if not node.Anonymized and node.node_id != owning_node.node_id and node.node_id not in [n.node_id for n in target_comp]
+                if not node.Anonymized and node.node_id != seed_vertex.node_id and node.node_id != candidate_vertex.node_id and node.node_id not in [n.node_id for n in target_comp]
             ]
 
             # Step 2: Prioritize by smallest degree and label proximity
@@ -525,7 +542,7 @@ class Anonymization(Graph):
             if not candidates:
                 candidates = [
                     node for node in self.G_prime.N
-                    if node.Anonymized and node.node_id != owning_node.node_id and node.node_id not in [n.node_id for n in target_comp]
+                    if node.Anonymized and node.node_id != seed_vertex.node_id and node.node_id != candidate_vertex.node_id and node.node_id not in [n.node_id for n in target_comp]
                 ]
                 candidates.sort(key=lambda n: len(n.edges))
                 if candidates:
@@ -545,12 +562,12 @@ class Anonymization(Graph):
                 selected = candidates[0]
 
             # Step 4: Add the selected node to the target component
+            neighbors.add(selected.node_id)
             target_comp.append(selected)
-
-            # Prevent self-loops
-            if selected.node_id != target_node.node_id:
-                target_node.addEdge(selected.node_id)
-            owning_node.addEdge(selected.node_id)
+            target_node.addEdge(selected.node_id)
+            selected.addEdge(target_node.node_id)
+            candidate_vertex.addEdge(selected.node_id)
+            selected.addEdge(candidate_vertex.node_id)
 
         # Step 1: Find starting nodes for BFS
         start_v, start_u = find_starting_nodes()

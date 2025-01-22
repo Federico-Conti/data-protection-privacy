@@ -42,10 +42,9 @@ def main():
             node2.addEdge(id_1)
 
     # Output the nodes and their connections
-    for node in graph.N:
+    for node in sorted(graph.N, key=lambda n: n.label):
         print(node)
     print("\n\n")
-
     # PREPARE PHASE: Extract neighborhoods and sort vertices by induced subgraph size
     anon = Anonymization(graph,k)
     anon.extract_neighborhoods()
@@ -93,9 +92,16 @@ def main():
         VertexListCopy = [v for v in anon.G_prime.N if v.Anonymized == False]
     
     print("\n\n")
+    
+    # Print the NCC (Normalized Clustering Coefficient) of each node in the anonymized graph
     # OUTPUT PHASE: Output the anonymized graph
-    for node in anon.G_prime.N:
-        print(node)
+    print("\n\n")
+    for group in anon.anonymized_groups:
+        print("Anonymized Group:")
+        for node in group:
+            print(node)
+            print(anon.G_prime.neighborhoods[node].NCC)
+        print("\n")
         
     # WRITE PHASE: Save the anonymized graph to a CSV file
     with open('result.csv', mode='w', newline='') as file:
