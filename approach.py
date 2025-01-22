@@ -7,6 +7,12 @@ class Anonymization(Graph):
         self.G = G
         self.G_prime = self.G
         self.k = k
+        self.anonymized_groups = []
+        self.label_hierarchy = {
+            "*": 3,  # Root (most general)
+            "Professional": 2,
+            "Student": 1,
+        }
         
 
     def extract_components(self,node):
@@ -128,12 +134,36 @@ class Anonymization(Graph):
         Returns:
             int: The generalization level of the label (higher is more general).
         """
-        label_hierarchy = {
-            "*": 3,  # Root (most general)
-            "Professional": 2,
-            "Student": 1,
-        }
-        return label_hierarchy.get(label, 0)  # Default to 0 if the label is missing
+        
+        return self.label_hierarchy.get(label, 0)  # Default to 0 if the label is missing
+    
+    def get_best_generalization_label(self,label1, label2):
+        
+        """
+        Retrieve the best generalization label between two labels.
+
+        Args:
+            label1 (str): The first label.
+            label2 (str): The second label.
+
+        Returns:
+            str: The best generalization label between the two input labels.
+        """
+        if label1 == label2:
+            return label1
+
+        level1 = self.get_generalization_level(label1)
+        level2 = self.get_generalization_level(label2)
+
+        if level1 > level2:
+            return label1
+        elif level2 > level1:
+            return label2
+        else:
+            # If the levels are the same, return the label with the shorter length
+            if level1 == 0 and level2 == 0:
+                return next(key for key, value in self.label_hierarchy.items() if value == 1)
+            return label1 if len(label1) < len(label2) else label2
 
         
     def extract_neighborhoods(self):
@@ -344,6 +374,10 @@ class Anonymization(Graph):
         Args:
             candidate_vertices (list[Node]): List of nodes including SeedVertex and its CandidateSet.
         """
+        # Mark all candidate vertices as anonymized
+        for node in candidate_vertices:
+            node.Anonymized = True
+        
         # Step 1: Extract neighborhoods for the candidate vertices
         neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
 
@@ -392,9 +426,7 @@ class Anonymization(Graph):
                     self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
                     unmatched_candidate.remove(best_match)
 
-        # Mark all candidate vertices as anonymized
-        for node in candidate_vertices:
-            node.Anonymized = True
+        
 
         # Re-extract neighborhoods after anonymization
         self.extract_neighborhoods()
@@ -413,42 +445,23 @@ class Anonymization(Graph):
         """
 
         def find_starting_nodes():
-            """
-            Identify the starting nodes for BFS traversal from both components.
-            """
-            # Step 1: Find nodes with same degree and label
-            candidates = []
-            for node_v in comp_v:
-                for node_u in comp_u:
-                    if len(node_v.edges) == len(node_u.edges) and node_v.label == node_u.label:
-                        candidates.append((node_v, node_u))
-
-            # Step 2: Prioritize by highest degree
-            if candidates:
-                return max(candidates, key=lambda pair: len(pair[0].edges))
-
-            # Step 3: Relax constraints and calculate anonymization cost
-            best_pair = None
-            best_cost = float('inf')
-            for node_v in comp_v:
-                for node_u in comp_u:
-                    ncp_cost = self.ncp(node_v.label, node_u.label)
-                    degree_cost = abs(len(node_v.edges) - len(node_u.edges))
-                    total_cost = ncp_cost + degree_cost
-                    if total_cost < best_cost:
-                        best_cost = total_cost
-                        best_pair = (node_v, node_u)
-
-            return best_pair
+                """Find the best matching nodes to start the BFS traversal."""
+                candidates = []
+                for node_v in comp_v:
+                    for node_u in comp_u:
+                        if len(list(node_v.getEdgesInComponent(comp_v))) == len(list(node_u.getEdgesInComponent(comp_u))) and node_v.label == node_u.label:
+                            candidates.append((node_v, node_u))
+    
+                if candidates:
+                    return max(candidates, key=lambda pair: len(list(pair[0].getEdgesInComponent(comp_v))))
+                return None, None
 
         def bfs_and_match(node_v, node_u):
-            """
-            Perform BFS on both components and match their structure.
-
-            Args:
-                node_v (Node): Starting node in `comp_v`.
-                node_u (Node): Starting node in `comp_u`.
-            """
+            """Perform BFS on both components to make them structurally similar."""
+            
+            if not node_v or not node_u:
+                raise ValueError("Starting nodes for BFS are not valid.")
+            
             queue_v = [node_v]
             queue_u = [node_u]
             visited_v = set()
@@ -461,37 +474,35 @@ class Anonymization(Graph):
                 visited_v.add(current_v.node_id)
                 visited_u.add(current_u.node_id)
 
-                # Step 1: Check and generalize labels
+                # Match labels
                 if current_v.label != current_u.label:
-                    current_u.label = '*'
+                    current_v.label = current_u.label = self.get_best_generalization_label(current_v.label, current_u.label)
 
-                # Step 2: Match neighbors
-                neighbors_v = set(current_v.edges) - visited_v
-                neighbors_u = set(current_u.edges) - visited_u
+                # Match neighbors within the component
+                neighbors_v = set(current_v.getEdgesInComponent(comp_v)) - visited_v
+                neighbors_u = set(current_u.getEdgesInComponent(comp_u)) - visited_u
 
-                # Add missing nodes to `comp_u`
                 while len(neighbors_v) > len(neighbors_u):
                     add_node_to_component(comp_v, comp_u, current_u, neighbors_u, candidate_vertex)
                     neighbors_u.add(next(iter(neighbors_v - neighbors_u)))
 
-                # Add missing nodes to `comp_v`
                 while len(neighbors_u) > len(neighbors_v):
                     add_node_to_component(comp_u, comp_v, current_v, neighbors_v, seed_vertex)
                     neighbors_v.add(next(iter(neighbors_u - neighbors_v)))
 
-                # Add missing edges and queue neighbors
                 for neighbor_v, neighbor_u in zip(sorted(neighbors_v), sorted(neighbors_u)):
                     node_neighbor_v = self.G_prime.getNode(neighbor_v)
                     node_neighbor_u = self.G_prime.getNode(neighbor_u)
 
-                    # Prevent self-loops
-                    if neighbor_v != current_u.node_id and neighbor_v not in current_u.edges:
+                    # Add edges if missing
+                    if neighbor_v not in current_u.edges:
                         current_u.addEdge(neighbor_v)
-                    if neighbor_u != current_v.node_id and neighbor_u not in current_v.edges:
+                    if neighbor_u not in current_v.edges:
                         current_v.addEdge(neighbor_u)
 
                     queue_v.append(node_neighbor_v)
                     queue_u.append(node_neighbor_u)
+
 
 
         def add_node_to_component(source_comp, target_comp, target_node, neighbors, owning_node):
@@ -523,13 +534,15 @@ class Anonymization(Graph):
                 candidates.sort(key=lambda n: len(n.edges))
                 if candidates:
                     selected = candidates[0]
-                    group = [selected] + [
-                        self.G_prime.getNode(neighbor)
-                        for neighbor in selected.edges[:self.k - 1]
-                        if self.G_prime.getNode(neighbor)
-                    ]
-                    for member in group:
-                        member.Anonymized = False
+                    anonymized_group = None
+                    for group in self.anonymized_groups:
+                        if selected in group:
+                            anonymized_group = group
+                            break
+                    if anonymized_group:         
+                        for member in anonymized_group:
+                            member.Anonymized = False
+                        self.anonymized_groups.remove(anonymized_group)
                 else:
                     raise ValueError("No suitable candidate found to add to the component.")
             else:

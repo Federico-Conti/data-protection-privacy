@@ -31,7 +31,7 @@ class Node:
         return neighbor_id in self.edges
 
     def __repr__(self):
-        return f"Node(id={self.node_id}, label={self.label}, edges={self.edges}, count_edges={len(self.edges)})"
+        return f"Node(id={self.node_id})"
     
 class Neighborhood:
     def __init__(self, components, NCC):

@@ -75,11 +75,17 @@ def main():
         print(f"Seed Vertex: {SeedVertex.node_id}, Candidate Set: {[v.node_id for v in CandidateSet]}")
         # Anonymize the neighborhoods
         anon.anonymize_neighborhoods([SeedVertex] + CandidateSet)
+        anon.anonymized_groups.append([SeedVertex] + CandidateSet)
+        
         for node in anon.G_prime.N:
             print(f"Node {node.node_id} anonymized: {node.Anonymized}")
-            
+        
+        print("\nnodes after anonymization")
+        for node in [SeedVertex] + CandidateSet:
+            print(node)
+        print("\n") 
         # Update VertexList
-        VertexListCopy = [v for v in VertexListCopy if v.Anonymized == False]
+        VertexListCopy = [v for v in anon.G_prime.N if v.Anonymized == False]
     
     print("\n\n")
     # OUTPUT PHASE: Output the anonymized graph
