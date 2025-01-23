@@ -199,7 +199,7 @@ class Anonymization(Graph):
             component_to_dfs.sort(key=lambda item: (
                 len({edge[0] for edge in item[1]}.union({edge[1] for edge in item[1] if edge[1] is not None})),  # Size of the component
                 1 if len(item[1]) == 1 and any(edge[1] is None for edge in item[1]) else 0,  # Single-node component handling
-                item[1]  # Lexicographical order of DFS code
+                [(edge[2] if edge[2] is not None else '', edge[3] if edge[3] is not None else '', edge[0], edge[1]) for edge in item[1]]  # Lexicographical order of DFS code
             ))
 
             # Separate the sorted components and their DFS codes
@@ -430,23 +430,30 @@ class Anonymization(Graph):
                     self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
                     unmatched_candidate.remove(best_match)
 
-        # # Step 3: Ensure all vertices in the anonymized group have the same label
-        
-        # # Find the vertex in candidate vertices with the max label level
-        # max_label_vertex = max(candidate_vertices, key=lambda node: self.get_generalization_level(node.label))
-        # max_label_level = self.get_generalization_level(max_label_vertex.label)
 
-        # # If max label level is 0, take the level 1 in the hierarchy
-        # if max_label_level == 0:
-        #     new_label = next(key for key, value in self.label_hierarchy.items() if value == 1)
-        # else:
-        #     new_label = max_label_vertex.label
-
-        # # Set all candidate vertices' labels to the new label
-        # for node in candidate_vertices:
-        #     node.label = new_label
-        # Re-extract neighborhoods after anonymization
         self.extract_neighborhoods()
+        
+        # Print all NCCs in a pretty way
+        for vertex in candidate_vertices:
+            neighborhood = self.G_prime.neighborhoods[vertex]
+            print(f"Neighborhood for vertex {vertex.node_id}:")
+            for i, ncc in enumerate(neighborhood.NCC):
+                print(f"  Component {i + 1}:")
+                for edge in ncc:
+                    print(f"    {edge}")
+        # Check if all NCCs are equal in candidate vertices
+        first_ncc = None
+        for vertex in candidate_vertices:
+            neighborhood = self.G_prime.neighborhoods[vertex]
+            if first_ncc is None:
+                first_ncc = neighborhood.NCC
+            else:
+                for comp1, comp2 in zip(first_ncc, neighborhood.NCC):
+                    if len(comp1) != len(comp2):
+                        raise ValueError("Not all NCCs are equal in candidate vertices.")
+                    for edge1, edge2 in zip(comp1, comp2):
+                        if edge1[2:] != edge2[2:]:
+                            raise ValueError("Not all NCCs are equal in candidate vertices.")
 
 
    
@@ -460,7 +467,10 @@ class Anonymization(Graph):
         """
 
         def find_starting_nodes():
-            # Find vertices with the same degree and label
+            """
+            Find a pair of starting nodes to initiate BFS.
+            Tries to match nodes with the same degree and label.
+            """
             candidates = []
             for node_v in comp_v:
                 for node_u in comp_u:
@@ -471,7 +481,7 @@ class Anonymization(Graph):
             if candidates:
                 return max(candidates, key=lambda pair: len(pair[0].edges))
 
-            # If no exact match, relax the matching requirement
+            # If no exact match, relax the matching criteria
             best_pair = None
             best_cost = float('inf')
             for node_v in comp_v:
@@ -486,8 +496,9 @@ class Anonymization(Graph):
             return best_pair
 
         def bfs_and_match(node_v, node_u):
-            """Perform BFS on both components to make them structurally similar."""
-
+            """
+            Perform BFS on both components to make them structurally similar.
+            """
             if not node_v or not node_u:
                 raise ValueError("Starting nodes for BFS are not valid.")
 
@@ -508,19 +519,20 @@ class Anonymization(Graph):
                 if current_v.label != current_u.label:
                     current_v.label = current_u.label = self.get_best_generalization_label(current_v.label, current_u.label)
 
-                # Match neighbors within the component
-                neighbors_v = {neighbor for neighbor in current_v.getEdgesInComponent(comp_v)} - visited_v
-                neighbors_u = {neighbor for neighbor in current_u.getEdgesInComponent(comp_u)} - visited_u
+                # Get neighbors within the component
+                neighbors_v = set(current_v.getEdgesInComponent(comp_v)) - visited_v - {node.node_id for node in queue_v}
+                neighbors_u = set(current_u.getEdgesInComponent(comp_u)) - visited_u - {node.node_id for node in queue_u}
 
+                # Balance neighbors by adding nodes
                 while len(neighbors_v) > len(neighbors_u):
                     if not add_node_to_component(comp_v, comp_u, current_u, neighbors_u, candidate_vertex):
-                        break  # Exit if no more nodes can be added
+                        break
 
                 while len(neighbors_u) > len(neighbors_v):
                     if not add_node_to_component(comp_u, comp_v, current_v, neighbors_v, seed_vertex):
-                        break  # Exit if no more nodes can be added
+                        break
 
-                # Add neighbors to the queue while avoiding duplicates
+                # Add remaining neighbors to the queues for further processing
                 for neighbor_id in neighbors_v:
                     neighbor_node = self.G_prime.getNode(neighbor_id)
                     if neighbor_node and neighbor_id not in visited_v:
@@ -531,12 +543,10 @@ class Anonymization(Graph):
                     if neighbor_node and neighbor_id not in visited_u:
                         queue_u.append(neighbor_node)
 
-                # Update visited sets to prevent reprocessing
+                # Update visited sets
                 visited_v.update(neighbors_v)
                 visited_u.update(neighbors_u)
-                   
-
-
+                
         def add_node_to_component(source_comp, target_comp, target_node, neighbors, owning_node):
             """
             Add a missing node to a target component.
@@ -551,30 +561,32 @@ class Anonymization(Graph):
             Returns:
                 bool: True if a node was successfully added, False otherwise.
             """
+            # Step 1: Filter candidates
             candidates = [
                 node for node in self.G_prime.N
                 if not node.Anonymized
                 and node.node_id not in [n.node_id for n in target_comp]
                 and node.node_id not in neighbors
-                and node.node_id != seed_vertex.node_id
-                and node.node_id != candidate_vertex.node_id
+                and node.node_id not in owning_node.edges
+                and node.node_id != owning_node.node_id
             ]
 
-            # Sort candidates by degree and label proximity
+            # Step 2: Prioritize by degree and label proximity
             candidates.sort(key=lambda n: (len(n.edges), self.ncp(target_node.label, n.label)))
 
             if not candidates:
-                # Fallback to anonymized nodes if no suitable candidate is found
+                # Step 3: Fallback to anonymized nodes
                 candidates = [
                     node for node in self.G_prime.N
-                    if node.Anonymized and node.node_id not in [n.node_id for n in target_comp]
-                    and node.node_id != seed_vertex.node_id
-                    and node.node_id != candidate_vertex.node_id
+                    if node.Anonymized
+                    and node.node_id not in [n.node_id for n in target_comp]
+                    and node.node_id not in owning_node.edges
+                    and node.node_id != owning_node.node_id
                 ]
                 candidates.sort(key=lambda n: len(n.edges))
 
                 if not candidates:
-                    return False  # No candidate available
+                    return False  # No suitable candidate found
 
                 # Reset anonymized group if using anonymized nodes
                 selected = candidates[0]
@@ -586,7 +598,7 @@ class Anonymization(Graph):
             else:
                 selected = candidates[0]
 
-            # Add the selected node to the target component
+            # Step 4: Add the selected node to the target component
             neighbors.add(selected.node_id)
             target_comp.append(selected)
             target_node.addEdge(selected.node_id)
@@ -594,23 +606,89 @@ class Anonymization(Graph):
             owning_node.addEdge(selected.node_id)
             selected.addEdge(owning_node.node_id)
 
+            # Mark the selected node as anonymized
+            selected.Anonymized = True
+
             return True
 
+
+        # Handle cases where one component is empty
         if not comp_v:
             for node in comp_u:
-                seed_vertex.addEdge(node.node_id)
-                node.addEdge(seed_vertex.node_id)
+                # Add nodes to `comp_v` to balance the structure
+                new_node = self.find_balanced_node(seed_vertex, node)
+                comp_v.append(new_node)
+                seed_vertex.addEdge(new_node.node_id)
+                new_node.addEdge(seed_vertex.node_id)
+
         elif not comp_u:
             for node in comp_v:
-                candidate_vertex.addEdge(node.node_id)
-                node.addEdge(candidate_vertex.node_id)
-        
-        else:
-            # Step 1: Find starting nodes for BFS
-            start_v, start_u = find_starting_nodes()
+                # Add nodes to `comp_u` to balance the structure
+                new_node = self.find_balance_node(candidate_vertex, node)
+                comp_u.append(new_node)
+                candidate_vertex.addEdge(new_node.node_id)
+                new_node.addEdge(candidate_vertex.node_id)
 
-            # Step 2: Perform BFS and modify components
-            bfs_and_match(start_v, start_u) 
+        # Step 1: Find starting nodes for BFS
+        start_v, start_u = find_starting_nodes()
+
+        # Step 2: Perform BFS and modify components
+        bfs_and_match(start_v, start_u)
+
+    def find_balanced_node(self, owning_node, reference_node):
+        """
+        Find a node to balance the structure of a component based on a reference node.
+
+        Args:
+            owning_node (Node): Node that "owns" the component.
+            reference_node (Node): Node in the reference component to mimic.
+
+        Returns:
+            Node: A suitable node for balancing, or a newly created node if none is found.
+        """
+        # Step 1: Filter candidates
+        candidates = [
+            node for node in self.G_prime.N
+            if not node.Anonymized
+            and node.node_id not in owning_node.edges
+            and node.node_id != owning_node.node_id
+        ]
+
+        # Step 2: Prioritize by degree and label proximity
+        candidates.sort(key=lambda n: (len(n.edges), self.ncp(reference_node.label, n.label)))
+
+        if not candidates:
+            # Step 3: Fallback to anonymized nodes
+            candidates = [
+                node for node in self.G_prime.N
+                if node.Anonymized
+                and node.node_id not in owning_node.edges
+                and node.node_id != owning_node.node_id
+            ]
+            candidates.sort(key=lambda n: len(n.edges))
+
+            if not candidates:
+                # Step 4: Create a new node if no suitable candidate is found
+                new_node = Node(node_id=len(self.G_prime.N) + 1, label=reference_node.label)
+                self.G_prime.addVertex(new_node)
+                new_node.Anonymized = True
+                return new_node
+
+            # Reset anonymized group if using anonymized nodes
+            selected = candidates[0]
+            anonymized_group = next((group for group in self.anonymized_groups if selected in group), None)
+            if anonymized_group:
+                for member in anonymized_group:
+                    member.Anonymized = False
+                self.anonymized_groups.remove(anonymized_group)
+        else:
+            selected = candidates[0]
+
+        # Mark the selected node as anonymized and return it
+        selected.Anonymized = True
+        return selected
+
+
         
         
 
