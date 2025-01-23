@@ -426,12 +426,12 @@ class Anonymization(Graph):
                 for j in range(len(candidate_neighborhood.NCC)) if j not in matched_candidate
             ]
             
-            # If the number of components in one neighborhood is more than the other, create empty components
-            while len(unmatched_seed) > len(unmatched_candidate):
-                unmatched_candidate.append(([], []))  # Add an empty component to the candidate neighborhood
+            # # If the number of components in one neighborhood is more than the other, create empty components
+            # while len(unmatched_seed) > len(unmatched_candidate):
+            #     unmatched_candidate.append(([], []))  # Add an empty component to the candidate neighborhood
 
-            while len(unmatched_candidate) > len(unmatched_seed):
-                unmatched_seed.append(([], []))  # Add an empty component to the seed neighborhood
+            # while len(unmatched_candidate) > len(unmatched_seed):
+            #     unmatched_seed.append(([], []))  # Add an empty component to the seed neighborhood
 
             for seed_comp, seed_dfs in unmatched_seed:
                 best_match_cost = float('inf')
@@ -514,200 +514,119 @@ class Anonymization(Graph):
 
             return best_pair
 
-        def bfs_and_match(node_v, node_u):
+        def bfs_and_match(node_v, node_u, comp_v, comp_u):
             """
             Perform BFS on both components to make them structurally similar.
+            Args:
+                node_v (Node): Starting node in component `comp_v`.
+                node_u (Node): Starting node in component `comp_u`.
+                comp_v (list[Node]): Component from neighborhood `v`.
+                comp_u (list[Node]): Component from neighborhood `u`.
             """
-            if not node_v or not node_u:
-                raise ValueError("Starting nodes for BFS are not valid.")
-
-            queue_v = [node_v]
             queue_u = [node_u]
-            visited_v = set()
+            queue_v = [node_v]
             visited_u = set()
+            visited_v = set()
 
-            while queue_v and queue_u:
-                current_v = queue_v.pop(0)
+            while queue_u and queue_v:
                 current_u = queue_u.pop(0)
+                current_v = queue_v.pop(0)
 
                 # Mark nodes as visited
-                visited_v.add(current_v.node_id)
                 visited_u.add(current_u.node_id)
+                visited_v.add(current_v.node_id)
 
                 # Match labels
-                if current_v.label != current_u.label:
-                    current_v.label = current_u.label = self.get_best_generalization_label(current_v.label, current_u.label)
+                if current_u.label != current_v.label:
+                    current_u.label = current_v.label = self.get_best_generalization_label(current_u, current_v)
 
-                # Get neighbors within the component
-                neighbors_v = set(current_v.getEdgesInComponent(comp_v)) - visited_v - {node.node_id for node in queue_v}
-                neighbors_u = set(current_u.getEdgesInComponent(comp_u)) - visited_u - {node.node_id for node in queue_u}
+                # Get neighbors in the component
+                neighbors_u = set(current_u.getEdgesInComponent(comp_u)) - visited_u
+                neighbors_v = set(current_v.getEdgesInComponent(comp_v)) - visited_v
 
-                # Balance neighbors by adding nodes
-                while len(neighbors_v) > len(neighbors_u):
-                    if not add_node_to_component(comp_v, comp_u, current_u, neighbors_u, candidate_vertex):
+                # Balance the number of neighbors
+                while len(neighbors_u) < len(neighbors_v):
+                    new_neighbor = addVertexToComponent(current_u, current_v, comp_u, candidate_vertex)
+                    if new_neighbor:
+                        neighbors_u.add(new_neighbor)
+                    else:
                         break
 
-                while len(neighbors_u) > len(neighbors_v):
-                    if not add_node_to_component(comp_u, comp_v, current_v, neighbors_v, seed_vertex):
+                while len(neighbors_v) < len(neighbors_u):
+                    new_neighbor = addVertexToComponent(current_v, current_u, comp_v, seed_vertex)
+                    if new_neighbor:
+                        neighbors_v.add(new_neighbor)
+                    else:
                         break
 
-
-                # Add remaining neighbors to the queues for further processing
-                for neighbor_id in neighbors_v:
-                    neighbor_node = self.G_prime.getNode(neighbor_id)
-                    if neighbor_node and neighbor_id not in visited_v:
-                        queue_v.append(neighbor_node)
-
+                # Add neighbors to the queue for further traversal
                 for neighbor_id in neighbors_u:
                     neighbor_node = self.G_prime.getNode(neighbor_id)
                     if neighbor_node and neighbor_id not in visited_u:
                         queue_u.append(neighbor_node)
 
-                # Update visited sets
-                visited_v.update(neighbors_v)
-                visited_u.update(neighbors_u)
+                for neighbor_id in neighbors_v:
+                    neighbor_node = self.G_prime.getNode(neighbor_id)
+                    if neighbor_node and neighbor_id not in visited_v:
+                        queue_v.append(neighbor_node)
+                    
                 
-        def add_node_to_component(source_comp, target_comp, target_node, neighbors, owning_node):
-            """
-            Add a missing node to a target component.
-
-            Args:
-                source_comp (list[Node]): Source component.
-                target_comp (list[Node]): Target component.
-                target_node (Node): Node in the target component to which the new node will connect.
-                neighbors (set): Set of existing neighbors in the target component.
-                owning_node (Node): Node that owns the target component.
-
-            Returns:
-                bool: True if a node was successfully added, False otherwise.
-            """
-            # Step 1: Filter candidates
+                
+        def addVertexToComponent(cur_component_vertex, node_to_be_matched ,component, owning_vertex):
             candidates = [
-                node for node in self.G_prime.N
-                if not node.Anonymized
-                and node.node_id not in [n.node_id for n in target_comp]
-                and node.node_id not in neighbors
-                and node.node_id not in owning_node.edges
-                and node.node_id != owning_node.node_id
+                node for node in self.G_prime.N 
+                if not node.Anonymized 
+                if node.node_id != candidate_vertex.node_id
+                if node.node_id != seed_vertex.node_id
+                and node.node_id not in component #un candidato non può essere della stessa componente ma può essere nel vicinato del nodo sorgente
             ]
-
-            # Step 2: Prioritize by degree and label proximity
-            candidates.sort(key=lambda n: (len(n.edges), self.ncp(target_node.label, n.label)))
-
-            if not candidates:
-                # Step 3: Fallback to anonymized nodes
-                candidates = [
-                    node for node in self.G_prime.N
-                    if node.Anonymized
-                    and node.node_id not in [n.node_id for n in target_comp]
-                    and node.node_id not in owning_node.edges
-                    and node.node_id != owning_node.node_id
-                ]
-                candidates.sort(key=lambda n: len(n.edges))
-
-                if not candidates:
-                    return False  # No suitable candidate found
-
-                # Reset anonymized group if using anonymized nodes
-                selected = candidates[0]
-                anonymized_group = next((group for group in self.anonymized_groups if selected in group), None)
-                if anonymized_group:
-                    for member in anonymized_group:
-                        member.Anonymized = False
-                    self.anonymized_groups.remove(anonymized_group)
-            else:
-                selected = candidates[0]
-
-            # Step 4: Add the selected node to the target component
-            neighbors.add(selected.node_id)
-            target_comp.append(selected)
             
-            target_node.addEdge(selected.node_id)
-            selected.addEdge(target_node.node_id)
-            owning_node.addEdge(selected.node_id)
-            selected.addEdge(owning_node.node_id)
+            if candidates:
+                candidates.sort(key=lambda n: (len(n.edges), self.ncp(node_to_be_matched.label, n.label))) 
+                selected = candidates[0]
+            else:
+                candidates = [
+                    node for node in self.G_prime.N 
+                    if node.node_id != candidate_vertex.node_id
+                    if node.node_id != seed_vertex.node_id
+                    and node.node_id not in component #un candidato non può essere della stessa componente ma può essere nel vicinato del nodo sorgente
+                ]
+                if candidates:
+                    candidates.sort(key=lambda n: (len(n.edges), self.ncp(node_to_be_matched.label, n.label)))  
+                    selected = candidates[0]
+                    anonymized_group = next((group for group in self.anonymized_groups if selected in group), None)
+                    if anonymized_group:
+                        for member in anonymized_group:
+                            member.Anonymized = False
+                        self.anonymized_groups.remove(anonymized_group)
+                else:
+                    raise ValueError("No more candidates available.")
+            
+            selected.addEdge(cur_component_vertex.node_id)
+            cur_component_vertex.addEdge(selected.node_id)
+            selected.addEdge(owning_vertex.node_id)
+            owning_vertex.addEdge(selected.node_id)
+            
+            return selected.node_id
+            
 
-            # Mark the selected node as anonymized
-            selected.Anonymized = True
-
-            return True
-
-
-        # Handle cases where one component is empty
-        if not comp_v:
-            for node in comp_u:
-                # Add nodes to `comp_v` to balance the structure
-                new_node = self.find_balanced_node(seed_vertex, node)
-                comp_v.append(new_node)
-                seed_vertex.addEdge(new_node.node_id)
-                new_node.addEdge(seed_vertex.node_id)
-
-        elif not comp_u:
-            for node in comp_v:
-                # Add nodes to `comp_u` to balance the structure
-                new_node = self.find_balance_node(candidate_vertex, node)
-                comp_u.append(new_node)
-                candidate_vertex.addEdge(new_node.node_id)
-                new_node.addEdge(candidate_vertex.node_id)
-
+            
+            
+            
+            
         # Step 1: Find starting nodes for BFS
         start_v, start_u = find_starting_nodes()
+        
+        # Mark all nodes in both components as not visited
+        for node in comp_v:
+            node.visited = False
+        for node in comp_u:
+            node.visited = False
 
         # Step 2: Perform BFS and modify components
-        bfs_and_match(start_v, start_u)
+        bfs_and_match(start_v, start_u, comp_v, comp_u) 
 
-    def find_balanced_node(self, owning_node, reference_node):
-        """
-        Find a node to balance the structure of a component based on a reference node.
-
-        Args:
-            owning_node (Node): Node that "owns" the component.
-            reference_node (Node): Node in the reference component to mimic.
-
-        Returns:
-            Node: A suitable node for balancing, or a newly created node if none is found.
-        """
-        # Step 1: Filter candidates
-        candidates = [
-            node for node in self.G_prime.N
-            if not node.Anonymized
-            and node.node_id not in owning_node.edges
-            and node.node_id != owning_node.node_id
-        ]
-
-        # Step 2: Prioritize by degree and label proximity
-        candidates.sort(key=lambda n: (len(n.edges), self.ncp(reference_node.label, n.label)))
-
-        if not candidates:
-            # Step 3: Fallback to anonymized nodes
-            candidates = [
-                node for node in self.G_prime.N
-                if node.Anonymized
-                and node.node_id not in owning_node.edges
-                and node.node_id != owning_node.node_id
-            ]
-            candidates.sort(key=lambda n: len(n.edges))
-
-            if not candidates:
-                # Step 4: Create a new node if no suitable candidate is found
-                new_node = Node(node_id=len(self.G_prime.N) + 1, label=reference_node.label)
-                self.G_prime.addVertex(new_node)
-                new_node.Anonymized = True
-                return new_node
-
-            # Reset anonymized group if using anonymized nodes
-            selected = candidates[0]
-            anonymized_group = next((group for group in self.anonymized_groups if selected in group), None)
-            if anonymized_group:
-                for member in anonymized_group:
-                    member.Anonymized = False
-                self.anonymized_groups.remove(anonymized_group)
-        else:
-            selected = candidates[0]
-
-        # Mark the selected node as anonymized and return it
-        selected.Anonymized = True
-        return selected
+    
 
 
         
