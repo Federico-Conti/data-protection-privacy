@@ -18,7 +18,7 @@ def main():
     alpha, beta, gamma = args.alpha, args.beta, args.gamma
     file_path = args.file_path
     graph = Graph()
-
+# \                             ** PREPARE PHASE **
     with open(file_path, mode='r') as file:
         csv_reader = csv.reader(file)
         next(csv_reader)  
@@ -41,22 +41,25 @@ def main():
             node1.addEdge(id_2)
             node2.addEdge(id_1)
 
-    # Output the nodes and their connections
-    for node in sorted(graph.N, key=lambda n: n.label):
-        print(node)
-    print("\n\n")
-    # PREPARE PHASE: Extract neighborhoods and sort vertices by induced subgraph size
+
+    # for node in sorted(graph.N, key=lambda n: n.label):
+    #     print(node)
+    # print("\n\n")
+    
+# \                             ** NEIGHBORHOODS EXTRACTION AND CODING **
     anon = Anonymization(graph,k)
     anon.extract_neighborhoods()
     
     VertexList = anon.G_prime.N
-    VertexList.sort(key=lambda node: node.induced_subgraph_size(anon.G_prime), reverse=True)  # Descending order
-    # for v in VertexList:
-    #     print(v)
+    VertexList.sort(key=lambda node: len(node.edges), reverse=True)
+    print("\n\nSorted Vertices:")
+    for v in VertexList:
+        print(v)
 
+
+# \                                              ** ANONYMIZATION **
     VertexListCopy = VertexList[:]
 
-    # ANONYMIZATION PHASE: Anonymize the neighborhoods of all vertices in the graph
     while VertexListCopy:
         # Select seed vertex
         SeedVertex = VertexListCopy.pop(0)
@@ -70,8 +73,6 @@ def main():
             CandidateSet = [v for _, v in costs[:k - 1]]
         else:
             CandidateSet = VertexListCopy
-        
-        print(f"\nSeed Vertex: {SeedVertex.node_id}, Candidate Set: {[v.node_id for v in CandidateSet]}")
         
         # Anonymize the neighborhoods
         # Anonymize Neighbor(SeedVertex) and Neighbor(u1)
@@ -95,24 +96,24 @@ def main():
     
     print("\n\n")
     
-    # Print the NCC (Normalized Clustering Coefficient) of each node in the anonymized graph
-    # OUTPUT PHASE: Output the anonymized graph
-    print("\n\n")
-    for group in anon.anonymized_groups:
-        print("Anonymized Group:")
-        for node in group:
-            print(node)
-            print(anon.G_prime.neighborhoods[node].NCC)
-        print("\n")
+    # # Print the NCC (Normalized Clustering Coefficient) of each node in the anonymized graph
+    # # OUTPUT PHASE: Output the anonymized graph
+    # print("\n\n")
+    # for group in anon.anonymized_groups:
+    #     print("Anonymized Group:")
+    #     for node in group:
+    #         print(node)
+    #         print(anon.G_prime.neighborhoods[node].NCC)
+    #     print("\n")
         
-    # WRITE PHASE: Save the anonymized graph to a CSV file
-    with open('result.csv', mode='w', newline='') as file:
-        csv_writer = csv.writer(file)
-        csv_writer.writerow(['id_1', 'id_2', 'label'])
+    # # WRITE PHASE: Save the anonymized graph to a CSV file
+    # with open('result.csv', mode='w', newline='') as file:
+    #     csv_writer = csv.writer(file)
+    #     csv_writer.writerow(['id_1', 'id_2', 'label'])
         
-        for node in anon.G_prime.N:
-            for neighbor_id in node.edges:
-                csv_writer.writerow([node.node_id, neighbor_id, node.label])
+    #     for node in anon.G_prime.N:
+    #         for neighbor_id in node.edges:
+    #             csv_writer.writerow([node.node_id, neighbor_id, node.label])
  
 if __name__ == "__main__":
     main()

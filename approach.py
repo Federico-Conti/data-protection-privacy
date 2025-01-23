@@ -13,8 +13,21 @@ class Anonymization(Graph):
             "Professional": 2,
             "Student": 1,
         }
-        
 
+    def printAllNodes(self):
+      for v in self.G_prime.N:
+        print(v)
+      print("\n")
+        
+    def printAllNcc(self):
+      for vertex, ncc in self.G_prime.neighborhoods.items():
+         print(f"  \nVertex {vertex.node_id}:")
+         for i, comp in enumerate(ncc.NCC):
+            print(f"  C{i + 1}:")
+            for edges in comp:
+                print(f"    {edges}")
+                
+    
     def extract_components(self,node):
         neighbors = [self.G_prime.getNode(neighbor_id) for neighbor_id in node.edges]
         components = []
@@ -210,6 +223,10 @@ class Anonymization(Graph):
             neighborhood = Neighborhood(sorted_components, sorted_NCC)
             self.G_prime.neighborhoods[node] = neighborhood
         
+        print("** END NEIGHBORHOODS EXTRACTION AND CODING **")
+
+          
+            
     
     def ncp(self, label1, label2):
         """
@@ -374,15 +391,16 @@ class Anonymization(Graph):
         Args:
             candidate_vertices (list[Node]): List of nodes including SeedVertex and its CandidateSet.
         """
-
         # Step 1: Extract neighborhoods for the candidate vertices
         neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
 
         # Seed Vertex's neighborhood
         seed_vertex, seed_neighborhood = next(iter(neighborhoods.items()))
+       
 
         # Iterate over Candidate Set's neighborhoods
         for candidate_vertex, candidate_neighborhood in list(neighborhoods.items())[1:]:
+            print(f"\n\n** Start Anonymous {seed_vertex.node_id} and {candidate_vertex.node_id} **")
             matched_seed = set()
             matched_candidate = set()
 
@@ -428,6 +446,7 @@ class Anonymization(Graph):
                 if best_match:
                     candidate_comp, candidate_dfs = best_match
                     self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
+                    self.printAllNodes()
                     unmatched_candidate.remove(best_match)
 
 
@@ -436,7 +455,7 @@ class Anonymization(Graph):
         # Print all NCCs in a pretty way
         for vertex in candidate_vertices:
             neighborhood = self.G_prime.neighborhoods[vertex]
-            print(f"Neighborhood for vertex {vertex.node_id}:")
+            print(f"\nNeighborhood for vertex {vertex.node_id}:")
             for i, ncc in enumerate(neighborhood.NCC):
                 print(f"  Component {i + 1}:")
                 for edge in ncc:
@@ -532,6 +551,7 @@ class Anonymization(Graph):
                     if not add_node_to_component(comp_u, comp_v, current_v, neighbors_v, seed_vertex):
                         break
 
+
                 # Add remaining neighbors to the queues for further processing
                 for neighbor_id in neighbors_v:
                     neighbor_node = self.G_prime.getNode(neighbor_id)
@@ -601,6 +621,7 @@ class Anonymization(Graph):
             # Step 4: Add the selected node to the target component
             neighbors.add(selected.node_id)
             target_comp.append(selected)
+            
             target_node.addEdge(selected.node_id)
             selected.addEdge(target_node.node_id)
             owning_node.addEdge(selected.node_id)
