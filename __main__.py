@@ -51,7 +51,7 @@ def main():
     anon.extract_neighborhoods()
     
     VertexList = anon.G_prime.N
-    VertexList.sort(key=lambda node: len(node.edges), reverse=True)
+    VertexList.sort(key=lambda node: (len(node.edges), sum(len(anon.G_prime.getNode(edge).edges) if anon.G_prime.getNode(edge) else 0 for edge in node.edges)), reverse=True)
     print("\n\nSorted Vertices:")
     for v in VertexList:
         print(v)
@@ -82,7 +82,6 @@ def main():
         for j in range(1, len(CandidateSet)):
             candidate_vertices = [CandidateSet[j]] + [SeedVertex] + CandidateSet[:j]
             anon.anonymize_neighborhoods(candidate_vertices)
-            
             for node in candidate_vertices:
                 node.Anonymized = True
                     # Mark all candidate vertices as anonymized

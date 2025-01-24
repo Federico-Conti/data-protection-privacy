@@ -428,6 +428,16 @@ class Anonymization(Graph):
                     (candidate_neighborhood.components[j], candidate_neighborhood.NCC[j])
                     for j in range(len(candidate_neighborhood.NCC)) if j not in matched_candidate
                 ]
+                
+
+                if not unmatched_seed:
+                    for component in unmatched_candidate:
+                        unmatched_seed.append(([],[]))
+            
+                if not unmatched_candidate:
+                    for component in unmatched_seed:
+                        unmatched_candidate.append(([],[]))
+                    
             
                 for seed_comp, seed_dfs in unmatched_seed:
                     best_match_cost = float('inf')
@@ -634,8 +644,8 @@ class Anonymization(Graph):
             candidates = [
                 node for node in self.G_prime.N 
                 if not node.Anonymized 
-                if node.node_id != candidate_vertex.node_id
-                if node.node_id != seed_vertex.node_id
+                and node.node_id != candidate_vertex.node_id
+                and node.node_id != seed_vertex.node_id
                 and node.node_id not in [node.node_id for node in comp_v]
                 and node.node_id not in [node.node_id for node in comp_u]
             ]
@@ -647,7 +657,7 @@ class Anonymization(Graph):
                 candidates = [
                     node for node in self.G_prime.N 
                     if node.node_id != candidate_vertex.node_id
-                    if node.node_id != seed_vertex.node_id
+                    and node.node_id != seed_vertex.node_id
                     and node.node_id not in [node.node_id for node in comp_v]
                     and node.node_id not in [node.node_id for node in comp_u]
                 ]
@@ -673,10 +683,8 @@ class Anonymization(Graph):
             candidates = [
                 node for node in self.G_prime.N 
                 if not node.Anonymized 
-                if node.node_id != candidate_vertex.node_id
-                if node.node_id != seed_vertex.node_id
-                and node.node_id not in [node.node_id for node in comp_v]
-                and node.node_id not in [node.node_id for node in comp_u]
+                and node.node_id != candidate_vertex.node_id
+                and node.node_id != seed_vertex.node_id
             ]
             if candidates:
                 candidates.sort(key=lambda n: (len(n.edges))) 
@@ -685,9 +693,7 @@ class Anonymization(Graph):
                 candidates = [
                     node for node in self.G_prime.N 
                     if node.node_id != candidate_vertex.node_id
-                    if node.node_id != seed_vertex.node_id
-                    and node.node_id not in [node.node_id for node in comp_v]
-                    and node.node_id not in [node.node_id for node in comp_u]
+                    and node.node_id != seed_vertex.node_id
                 ]
                 if candidates:
                     candidates.sort(key=lambda n: (len(n.edges)))  
