@@ -162,8 +162,6 @@ class Anonymization(Graph):
         Returns:
             str: The best generalization label between the two input labels.
         """
-        if label1 == label2:
-            return label1
 
         level1 = self.get_generalization_level(label1)
         level2 = self.get_generalization_level(label2)
@@ -173,8 +171,7 @@ class Anonymization(Graph):
         elif level2 > level1:
             return label2
         else:
-            # If the levels are the same, return the label with the shorter length
-            if level1 == 0 and level2 == 0:
+            if level1 == level2:
                 return next(key for key, value in self.label_hierarchy.items() if value == 1)
             return label1 if len(label1) < len(label2) else label2
 
@@ -425,14 +422,7 @@ class Anonymization(Graph):
                 (candidate_neighborhood.components[j], candidate_neighborhood.NCC[j])
                 for j in range(len(candidate_neighborhood.NCC)) if j not in matched_candidate
             ]
-            
-            # # If the number of components in one neighborhood is more than the other, create empty components
-            # while len(unmatched_seed) > len(unmatched_candidate):
-            #     unmatched_candidate.append(([], []))  # Add an empty component to the candidate neighborhood
-
-            # while len(unmatched_candidate) > len(unmatched_seed):
-            #     unmatched_seed.append(([], []))  # Add an empty component to the seed neighborhood
-
+        
             for seed_comp, seed_dfs in unmatched_seed:
                 best_match_cost = float('inf')
                 best_match = None
@@ -448,7 +438,25 @@ class Anonymization(Graph):
                     self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
                     self.printAllNodes()
                     unmatched_candidate.remove(best_match)
+                    unmatched_seed.remove((seed_comp, seed_dfs))
+                    
+            # Step 2.3: Handle remaining unmatched components
+            if unmatched_seed:
+                for seed_comp, seed_dfs in unmatched_seed:
+                    self.make_isomorphic(seed_comp, [], seed_vertex, candidate_vertex)
+                
+            if unmatched_candidate:
+                for candidate_comp, candidate_dfs in unmatched_candidate:
+                    self.make_isomorphic([], candidate_comp, seed_vertex, candidate_vertex)
 
+         # Print all NCCs in a pretty way
+        for vertex in candidate_vertices:
+            neighborhood = self.G_prime.neighborhoods[vertex]
+            print(f"\nNeighborhood for vertex {vertex.node_id}:")
+            for i, ncc in enumerate(neighborhood.NCC):
+                print(f"  Component {i + 1}:")
+                for edge in ncc:
+                    print(f"    {edge}")
 
         self.extract_neighborhoods()
         
@@ -493,6 +501,10 @@ class Anonymization(Graph):
             candidates = []
             for node_v in comp_v:
                 for node_u in comp_u:
+                    
+                    if node_v == node_u:
+                        return node_v, node_u
+                    
                     if node_v.label == node_u.label and len(node_v.getEdgesInComponent(comp_v)) == len(node_u.getEdgesInComponent(comp_u)):
                         candidates.append((node_v, node_u))
 
@@ -503,11 +515,24 @@ class Anonymization(Graph):
             # If no exact match, relax the matching criteria
             best_pair = None
             best_cost = float('inf')
+            
+            max_degree_v = max((len(node.getEdgesInComponent(comp_v)) for node in comp_v), default=0)
+            max_degree_u = max((len(node.getEdgesInComponent(comp_u)) for node in comp_u), default=0)
+            max_degree = max_degree_v + max_degree_u
+            
             for node_v in comp_v:
                 for node_u in comp_u:
-                    degree_diff = abs(len(node_v.edges) - len(node_u.edges))
+                    # Normalize degree difference
+                    degree_diff = abs(len(node_v.getEdgesInComponent(comp_v)) - len(node_u.getEdgesInComponent(comp_u)))
+                    normalized_degree_diff = degree_diff / max_degree if max_degree > 0 else 0
+
+                    # Normalize NCP cost (if needed)
                     ncp_cost = self.ncp(node_v.label, node_u.label)
-                    total_cost = degree_diff + ncp_cost
+                    # Assume max_possible_ncp is known or calculate it dynamically
+                    normalized_ncp_cost = ncp_cost  # Add normalization logic if needed
+
+                    # Calculate total cost
+                    total_cost = normalized_degree_diff + normalized_ncp_cost
                     if total_cost < best_cost:
                         best_cost = total_cost
                         best_pair = (node_v, node_u)
@@ -537,8 +562,7 @@ class Anonymization(Graph):
                 visited_v.add(current_v.node_id)
 
                 # Match labels
-                if current_u.label != current_v.label:
-                    current_u.label = current_v.label = self.get_best_generalization_label(current_u, current_v)
+                current_u.label = current_v.label = self.get_best_generalization_label(current_u, current_v)
 
                 # Get neighbors in the component
                 neighbors_u = set(current_u.getEdgesInComponent(comp_u)) - visited_u
@@ -578,7 +602,8 @@ class Anonymization(Graph):
                 if not node.Anonymized 
                 if node.node_id != candidate_vertex.node_id
                 if node.node_id != seed_vertex.node_id
-                and node.node_id not in component #un candidato non può essere della stessa componente ma può essere nel vicinato del nodo sorgente
+                and node.node_id not in comp_u
+                and node.node_id not in comp_v
             ]
             
             if candidates:
@@ -589,7 +614,8 @@ class Anonymization(Graph):
                     node for node in self.G_prime.N 
                     if node.node_id != candidate_vertex.node_id
                     if node.node_id != seed_vertex.node_id
-                    and node.node_id not in component #un candidato non può essere della stessa componente ma può essere nel vicinato del nodo sorgente
+                    and node.node_id not in comp_u
+                    and node.node_id not in comp_v
                 ]
                 if candidates:
                     candidates.sort(key=lambda n: (len(n.edges), self.ncp(node_to_be_matched.label, n.label)))  
@@ -601,18 +627,50 @@ class Anonymization(Graph):
                         self.anonymized_groups.remove(anonymized_group)
                 else:
                     raise ValueError("No more candidates available.")
-            
+            component.append(selected)
             selected.addEdge(cur_component_vertex.node_id)
             cur_component_vertex.addEdge(selected.node_id)
             selected.addEdge(owning_vertex.node_id)
             owning_vertex.addEdge(selected.node_id)
             
             return selected.node_id
+        
+        def addVertexToEmptyComponent(component, owning_vertex):
+            candidates = [
+                node for node in self.G_prime.N 
+                if not node.Anonymized 
+                if node.node_id != candidate_vertex.node_id
+                if node.node_id != seed_vertex.node_id
+            ]
+            if candidates:
+                candidates.sort(key=lambda n: (len(n.edges))) 
+                selected = candidates[0]
+            else:
+                candidates = [
+                    node for node in self.G_prime.N 
+                    if node.node_id != candidate_vertex.node_id
+                    if node.node_id != seed_vertex.node_id
+                    and node.node_id not in comp_u
+                    and node.node_id not in comp_v
+                ]
+                if candidates:
+                    candidates.sort(key=lambda n: (len(n.edges)))  
+                    selected = candidates[0]
+                    anonymized_group = next((group for group in self.anonymized_groups if selected in group), None)
+                    if anonymized_group:
+                        for member in anonymized_group:
+                            member.Anonymized = False
+                        self.anonymized_groups.remove(anonymized_group)
+                else:
+                    raise ValueError("No more candidates available.")
+            component.append(selected)
+            selected.addEdge(owning_vertex.node_id)
+            owning_vertex.addEdge(selected.node_id)
             
-
-            
-            
-            
+        if not comp_v:
+            addVertexToEmptyComponent(comp_v, seed_vertex)
+        if not comp_u:
+            addVertexToEmptyComponent(comp_u, candidate_vertex)   
             
         # Step 1: Find starting nodes for BFS
         start_v, start_u = find_starting_nodes()
