@@ -171,7 +171,7 @@ class Anonymization(Graph):
         elif level2 > level1:
             return label2
         else:
-            if level1 == level2:
+            if level1 == 0 and level2 == 0:
                 return next(key for key, value in self.label_hierarchy.items() if value == 1)
             return label1 if len(label1) < len(label2) else label2
 
@@ -398,76 +398,73 @@ class Anonymization(Graph):
         # Iterate over Candidate Set's neighborhoods
         for candidate_vertex, candidate_neighborhood in list(neighborhoods.items())[1:]:
             print(f"\n\n** Start Anonymous {seed_vertex.node_id} and {candidate_vertex.node_id} **")
-            matched_seed = set()
-            matched_candidate = set()
+            
+            unmatched_candidate = True
+            unmatched_seed = True
+            
+            while unmatched_seed and unmatched_candidate:
+            
+                matched_seed = set()
+                matched_candidate = set()
 
-            # Step 2.1: Perfectly match components
-            for i, (seed_comp, seed_dfs) in enumerate(zip(seed_neighborhood.components, seed_neighborhood.NCC)):
-                for j, (candidate_comp, candidate_dfs) in enumerate(zip(candidate_neighborhood.components, candidate_neighborhood.NCC)):
-                    if j in matched_candidate:
-                        continue
-                    if len(seed_dfs) == len(candidate_dfs) and all(
-                        edge_s[2:] == edge_c[2:] for edge_s, edge_c in zip(seed_dfs, candidate_dfs)
-                    ):
-                        matched_seed.add(i)
-                        matched_candidate.add(j)
+                # Step 2.1: Perfectly match components
+                for i, (seed_comp, seed_dfs) in enumerate(zip(seed_neighborhood.components, seed_neighborhood.NCC)):
+                    for j, (candidate_comp, candidate_dfs) in enumerate(zip(candidate_neighborhood.components, candidate_neighborhood.NCC)):
+                        if j in matched_candidate:
+                            continue
+                        if len(seed_dfs) == len(candidate_dfs) and all(
+                            edge_s[2:] == edge_c[2:] for edge_s, edge_c in zip(seed_dfs, candidate_dfs)
+                        ):
+                            matched_seed.add(i)
+                            matched_candidate.add(j)
+                            break
+
+                # Step 2.2: Handle unmatched components
+                unmatched_seed = [
+                    (seed_neighborhood.components[i], seed_neighborhood.NCC[i])
+                    for i in range(len(seed_neighborhood.NCC)) if i not in matched_seed
+                ]
+                unmatched_candidate = [
+                    (candidate_neighborhood.components[j], candidate_neighborhood.NCC[j])
+                    for j in range(len(candidate_neighborhood.NCC)) if j not in matched_candidate
+                ]
+            
+                for seed_comp, seed_dfs in unmatched_seed:
+                    best_match_cost = float('inf')
+                    best_match = None
+
+                    for candidate_comp, candidate_dfs in unmatched_candidate:
+                        match_cost = self.match_components_cost(seed_dfs, candidate_dfs)
+                        if match_cost < best_match_cost:
+                            best_match_cost = match_cost
+                            best_match = (candidate_comp, candidate_dfs)
+
+                    if best_match:
+                        candidate_comp, candidate_dfs = best_match
+                        self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
+                        self.printAllNodes()
+                        self.extract_neighborhoods()
                         break
 
-            # Step 2.2: Handle unmatched components
-            unmatched_seed = [
-                (seed_neighborhood.components[i], seed_neighborhood.NCC[i])
-                for i in range(len(seed_neighborhood.NCC)) if i not in matched_seed
-            ]
-            unmatched_candidate = [
-                (candidate_neighborhood.components[j], candidate_neighborhood.NCC[j])
-                for j in range(len(candidate_neighborhood.NCC)) if j not in matched_candidate
-            ]
-        
-            for seed_comp, seed_dfs in unmatched_seed:
-                best_match_cost = float('inf')
-                best_match = None
+            # Print all NCCs in a pretty way
+            for vertex in candidate_vertices:
+                neighborhood = self.G_prime.neighborhoods[vertex]
+                print(f"\nNeighborhood for vertex {vertex.node_id}:")
+                for i, ncc in enumerate(neighborhood.NCC):
+                    print(f"  Component {i + 1}:")
+                    for edge in ncc:
+                        print(f"    {edge}")
 
-                for candidate_comp, candidate_dfs in unmatched_candidate:
-                    match_cost = self.match_components_cost(seed_dfs, candidate_dfs)
-                    if match_cost < best_match_cost:
-                        best_match_cost = match_cost
-                        best_match = (candidate_comp, candidate_dfs)
-
-                if best_match:
-                    candidate_comp, candidate_dfs = best_match
-                    self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
-                    self.printAllNodes()
-                    unmatched_candidate.remove(best_match)
-                    unmatched_seed.remove((seed_comp, seed_dfs))
-                    
-            # Step 2.3: Handle remaining unmatched components
-            if unmatched_seed:
-                for seed_comp, seed_dfs in unmatched_seed:
-                    self.make_isomorphic(seed_comp, [], seed_vertex, candidate_vertex)
-                
-            if unmatched_candidate:
-                for candidate_comp, candidate_dfs in unmatched_candidate:
-                    self.make_isomorphic([], candidate_comp, seed_vertex, candidate_vertex)
-
-         # Print all NCCs in a pretty way
-        for vertex in candidate_vertices:
-            neighborhood = self.G_prime.neighborhoods[vertex]
-            print(f"\nNeighborhood for vertex {vertex.node_id}:")
-            for i, ncc in enumerate(neighborhood.NCC):
-                print(f"  Component {i + 1}:")
-                for edge in ncc:
-                    print(f"    {edge}")
-
-        self.extract_neighborhoods()
-        
-        # Print all NCCs in a pretty way
-        for vertex in candidate_vertices:
-            neighborhood = self.G_prime.neighborhoods[vertex]
-            print(f"\nNeighborhood for vertex {vertex.node_id}:")
-            for i, ncc in enumerate(neighborhood.NCC):
-                print(f"  Component {i + 1}:")
-                for edge in ncc:
-                    print(f"    {edge}")
+            
+            
+            # Print all NCCs in a pretty way
+            for vertex in candidate_vertices:
+                neighborhood = self.G_prime.neighborhoods[vertex]
+                print(f"\nNeighborhood for vertex {vertex.node_id}:")
+                for i, ncc in enumerate(neighborhood.NCC):
+                    print(f"  Component {i + 1}:")
+                    for edge in ncc:
+                        print(f"    {edge}")
         # Check if all NCCs are equal in candidate vertices
         first_ncc = None
         for vertex in candidate_vertices:
@@ -548,25 +545,69 @@ class Anonymization(Graph):
                 comp_v (list[Node]): Component from neighborhood `v`.
                 comp_u (list[Node]): Component from neighborhood `u`.
             """
+            
             queue_u = [node_u]
             queue_v = [node_v]
             visited_u = set()
             visited_v = set()
+            
+            mapping = {}
+            counter_mapping = 1
 
             while queue_u and queue_v:
                 current_u = queue_u.pop(0)
                 current_v = queue_v.pop(0)
-
+                
+                
                 # Mark nodes as visited
                 visited_u.add(current_u.node_id)
                 visited_v.add(current_v.node_id)
+                
+                # Initialize the set if it doesn't exist and map nodes with counter mapping
+                if counter_mapping not in mapping:
+                    mapping[counter_mapping] = set()
+                mapping[counter_mapping].add(current_u.node_id)
+                mapping[counter_mapping].add(current_v.node_id)
+                counter_mapping += 1
+                
+                nextVertexinComponent_u = set(current_u.getEdgesInComponent(comp_u))
+                nextVertexinComponent_v = set(current_v.getEdgesInComponent(comp_v))
+                
+                if len(comp_u) < len(comp_v):
+                    for neighbor_id_v in nextVertexinComponent_v:
+                        if neighbor_id_v in visited_v:
+                            for key, value in mapping.items():
+                                if neighbor_id_v in value:
+                                    mapping_id = key
+                                    break
+
+                            # Add edge if it does not exist using adjacency logic
+                            for node_id_u in mapping[mapping_id]:
+                                if node_id_u in visited_u:
+                                    if node_id_u not in current_u.edges:
+                                        current_u.addEdge(node_id_u)
+
+                else:
+                    for neighbor_id_u in nextVertexinComponent_u:
+                        if neighbor_id_u in visited_u:
+                            for key, value in mapping.items():
+                                if neighbor_id_u in value:
+                                    mapping_id = key
+                                    break
+
+                            # Add edge if it does not exist using adjacency logic
+                            for node_id_v in mapping[mapping_id]:
+                                if node_id_v in visited_v:
+                                    if node_id_v not in current_v.edges:
+                                        current_v.addEdge(node_id_v)                
 
                 # Match labels
-                current_u.label = current_v.label = self.get_best_generalization_label(current_u, current_v)
+                if current_u.label != current_v.label:
+                    current_u.label = current_v.label = self.get_best_generalization_label(current_u, current_v)
 
                 # Get neighbors in the component
-                neighbors_u = set(current_u.getEdgesInComponent(comp_u)) - visited_u
-                neighbors_v = set(current_v.getEdgesInComponent(comp_v)) - visited_v
+                neighbors_u = nextVertexinComponent_u - visited_u
+                neighbors_v = nextVertexinComponent_v - visited_v
 
                 # Balance the number of neighbors
                 while len(neighbors_u) < len(neighbors_v):
@@ -641,6 +682,8 @@ class Anonymization(Graph):
                 if not node.Anonymized 
                 if node.node_id != candidate_vertex.node_id
                 if node.node_id != seed_vertex.node_id
+                and node.node_id not in comp_u
+                and node.node_id not in comp_v
             ]
             if candidates:
                 candidates.sort(key=lambda n: (len(n.edges))) 
@@ -682,7 +725,7 @@ class Anonymization(Graph):
             node.visited = False
 
         # Step 2: Perform BFS and modify components
-        bfs_and_match(start_v, start_u, comp_v, comp_u) 
+        bfs_and_match(start_v, start_u, comp_v, comp_u) #
 
     
 
