@@ -1,4 +1,5 @@
 from graph import Graph, Node, Neighborhood
+from functools import cmp_to_key
 
 class Anonymization(Graph):
 
@@ -94,6 +95,32 @@ class Anonymization(Graph):
     def getBestComponentDFS(self, component):
         """per ogni nodo della dela componente facciamo una dfs e controlliamo quella lessicamente migliore"""
         # Initialize visited to False for each component node
+        
+        def dfs_edge_comparator(edge1, edge2):
+            u1, v1, label_u1, label_v1 = edge1
+            u2, v2, label_u2, label_v2 = edge2
+            # Rule (1): Both are forward edges
+            if u1 < v1 and u2 < v2:
+                if v1 != v2:
+                    return -1 if v1 < v2 else 1
+                return -1 if u1 > u2 else 1 if u1 < u2 else 0
+
+            # Rule (2): Both are backward edges
+            if u1 > v1 and u2 > v2:
+                if u1 != u2:
+                    return -1 if u1 < u2 else 1
+                return -1 if v1 < v2 else 1 if v1 > v2 else 0
+
+            # Rule (3): edge1 is forward and edge2 is backward
+            if u1 < v1 and u2 > v2:
+                return -1 if v1 <= u2 else 1
+
+            # Rule (4): edge1 is backward and edge2 is forward
+            if u1 > v1 and u2 < v2:
+                return -1 if u1 < v2 else 1
+
+            return 0  # Equal edges
+        
         if len(component) == 1:
             node = component[0]
             return [(node.node_id, None, node.label, None)]
@@ -103,6 +130,7 @@ class Anonymization(Graph):
 
         # Initialize R as a list of list of sets of Result between FW and BW
         R = []
+        
         
         for node in component:
             """
@@ -129,7 +157,7 @@ class Anonymization(Graph):
                     if not any((node.node_id == tuple[0] and e == tuple[1]) or (node.node_id == tuple[1] and e == tuple[0]) for tuple in R_aux):
                         R_aux.append((e, node.node_id, self.G_prime.getNode(e).label, node.label))
 
-            R_aux.sort(key=lambda x: (x[0], x[1])) # <=
+            R_aux.sort(key=cmp_to_key(dfs_edge_comparator))
             R.append(R_aux)
 
         R.sort(key=lambda x: (len(x), [(edge[2], edge[3], edge[0], edge[1]) for edge in x])) #restituiamo la best DFS per ogni C 
@@ -452,6 +480,7 @@ class Anonymization(Graph):
                     if best_match:
                         candidate_comp, candidate_dfs = best_match
                         self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
+                        self.printAllNcc()
                         self.extract_neighborhoods()
                         
                         neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
@@ -557,7 +586,7 @@ class Anonymization(Graph):
             mapping = {}
             counter_mapping = 1
 
-            while queue_u and queue_v:
+            while queue_u or queue_v:
                 current_u = queue_u.pop(0)
                 current_v = queue_v.pop(0)
                 
@@ -683,8 +712,7 @@ class Anonymization(Graph):
             candidates = [
                 node for node in self.G_prime.N 
                 if not node.Anonymized 
-                and node.node_id != candidate_vertex.node_id
-                and node.node_id != seed_vertex.node_id
+                and node.node_id != owning_vertex.node_id
             ]
             if candidates:
                 candidates.sort(key=lambda n: (len(n.edges))) 
@@ -692,8 +720,8 @@ class Anonymization(Graph):
             else:
                 candidates = [
                     node for node in self.G_prime.N 
-                    if node.node_id != candidate_vertex.node_id
-                    and node.node_id != seed_vertex.node_id
+                    if not node.Anonymized 
+                    and node.node_id != owning_vertex.node_id
                 ]
                 if candidates:
                     candidates.sort(key=lambda n: (len(n.edges)))  
@@ -718,10 +746,6 @@ class Anonymization(Graph):
         start_v, start_u = find_starting_nodes()
         
         # Mark all nodes in both components as not visited
-        for node in comp_v:
-            node.visited = False
-        for node in comp_u:
-            node.visited = False
 
         # Step 2: Perform BFS and modify components
         bfs_and_match(start_v, start_u, comp_v, comp_u) #

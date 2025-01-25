@@ -10,7 +10,7 @@ def main():
     parser.add_argument('--alpha', type=float, default=1.0, help='Weight for alpha in cost function')
     parser.add_argument('--beta', type=float, default=1.0, help='Weight for beta in cost function')
     parser.add_argument('--gamma', type=float, default=1.0, help='Weight for gamma in cost function')
-    parser.add_argument('--file_path', type=str, default='test.csv', help='Path to the CSV file')
+    parser.add_argument('--file_path', type=str, default='real.csv', help='Path to the CSV file')
 
     args = parser.parse_args()
 
