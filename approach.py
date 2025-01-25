@@ -1,5 +1,6 @@
 from graph import Graph, Node, Neighborhood
 from functools import cmp_to_key
+import random
 
 class Anonymization(Graph):
 
@@ -421,7 +422,6 @@ class Anonymization(Graph):
 
         # Seed Vertex's neighborhood
         seed_vertex, seed_neighborhood = next(iter(neighborhoods.items()))
-       
 
         # Iterate over Candidate Set's neighborhoods
         for candidate_vertex, candidate_neighborhood in list(neighborhoods.items())[1:]:
@@ -480,7 +480,6 @@ class Anonymization(Graph):
                     if best_match:
                         candidate_comp, candidate_dfs = best_match
                         self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
-                        self.printAllNcc()
                         self.extract_neighborhoods()
                         
                         neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
@@ -553,15 +552,13 @@ class Anonymization(Graph):
                 for node_u in comp_u:
                     # Normalize degree difference
                     degree_diff = abs(len(node_v.getEdgesInComponent(comp_v)) - len(node_u.getEdgesInComponent(comp_u)))
-                    normalized_degree_diff = degree_diff / max_degree if max_degree > 0 else 0
 
                     # Normalize NCP cost (if needed)
                     ncp_cost = self.ncp(node_v.label, node_u.label)
-                    # Assume max_possible_ncp is known or calculate it dynamically
-                    normalized_ncp_cost = ncp_cost  # Add normalization logic if needed
+
 
                     # Calculate total cost
-                    total_cost = normalized_degree_diff + normalized_ncp_cost
+                    total_cost = degree_diff + ncp_cost
                     if total_cost < best_cost:
                         best_cost = total_cost
                         best_pair = (node_v, node_u)
@@ -583,10 +580,9 @@ class Anonymization(Graph):
             visited_u = set()
             visited_v = set()
             
-            mapping = {}
-            counter_mapping = 1
+            nodes_mapping = {}
 
-            while queue_u or queue_v:
+            while len(queue_u)==len(queue_v) and len(queue_u) > 0:
                 current_u = queue_u.pop(0)
                 current_v = queue_v.pop(0)
                 
@@ -596,11 +592,8 @@ class Anonymization(Graph):
                 visited_v.add(current_v.node_id)
                 
                 # Initialize the set if it doesn't exist and map nodes with counter mapping
-                if counter_mapping not in mapping:
-                    mapping[counter_mapping] = set()
-                mapping[counter_mapping].add(current_u.node_id)
-                mapping[counter_mapping].add(current_v.node_id)
-                counter_mapping += 1
+                nodes_mapping[current_u.node_id] = current_v.node_id
+        
                 
                 nextVertexinComponent_u = set(current_u.getEdgesInComponent(comp_u))
                 nextVertexinComponent_v = set(current_v.getEdgesInComponent(comp_v))
@@ -608,30 +601,20 @@ class Anonymization(Graph):
                 if len(comp_u) < len(comp_v):
                     for neighbor_id_v in nextVertexinComponent_v:
                         if neighbor_id_v in visited_v:
-                            for key, value in mapping.items():
-                                if neighbor_id_v in value:
-                                    mapping_id = key
-                                    break
-
-                            # Add edge if it does not exist using adjacency logic
-                            for node_id_u in mapping[mapping_id]:
-                                if node_id_u in visited_u:
-                                    if node_id_u not in current_u.edges:
-                                        current_u.addEdge(node_id_u)
+                            key = next((k for k, v in nodes_mapping.items() if v == neighbor_id_v), None)
+                            if key not in current_u.edges:
+                                current_u.addEdge(key)
+                                self.G_prime.getNode(key).addEdge(current_u.node_id)
+                        
 
                 else:
                     for neighbor_id_u in nextVertexinComponent_u:
                         if neighbor_id_u in visited_u:
-                            for key, value in mapping.items():
-                                if neighbor_id_u in value:
-                                    mapping_id = key
-                                    break
-
-                            # Add edge if it does not exist using adjacency logic
-                            for node_id_v in mapping[mapping_id]:
-                                if node_id_v in visited_v:
-                                    if node_id_v not in current_v.edges:
-                                        current_v.addEdge(node_id_v)                
+                            key = nodes_mapping[neighbor_id_u]
+                            if key not in current_v.edges:
+                                current_v.addEdge(key)
+                                self.G_prime.getNode(key).addEdge(current_v.node_id)
+                                   
 
                 # Match labels
                 if current_u.label != current_v.label:
@@ -657,12 +640,12 @@ class Anonymization(Graph):
                         break
 
                 # Add neighbors to the queue for further traversal
-                for neighbor_id in neighbors_u:
+                for neighbor_id in reversed(list(neighbors_u)):
                     neighbor_node = self.G_prime.getNode(neighbor_id)
                     if neighbor_node and neighbor_id not in visited_u:
                         queue_u.append(neighbor_node)
 
-                for neighbor_id in neighbors_v:
+                for neighbor_id in reversed(list(neighbors_v)):
                     neighbor_node = self.G_prime.getNode(neighbor_id)
                     if neighbor_node and neighbor_id not in visited_v:
                         queue_v.append(neighbor_node)
@@ -685,7 +668,7 @@ class Anonymization(Graph):
             else:
                 candidates = [
                     node for node in self.G_prime.N 
-                    if node.node_id != candidate_vertex.node_id
+                    if node.node_id not in [node.node_id for node in component]
                     and node.node_id != seed_vertex.node_id
                     and node.node_id not in [node.node_id for node in comp_v]
                     and node.node_id not in [node.node_id for node in comp_u]
@@ -699,7 +682,7 @@ class Anonymization(Graph):
                             member.Anonymized = False
                         self.anonymized_groups.remove(anonymized_group)
                 else:
-                    raise ValueError("No more candidates available.")
+                    raise ValueError("No more candidates available for anonymization.") 
             component.append(selected)
             selected.addEdge(cur_component_vertex.node_id)
             cur_component_vertex.addEdge(selected.node_id)
@@ -708,11 +691,12 @@ class Anonymization(Graph):
             
             return selected.node_id
         
-        def addVertexToEmptyComponent(component, owning_vertex):
+        def addVertexToEmptyComponent(component, component_to_be_matched ,owning_vertex):
             candidates = [
                 node for node in self.G_prime.N 
                 if not node.Anonymized 
                 and node.node_id != owning_vertex.node_id
+                and node.node_id not in [node.node_id for node in component_to_be_matched]
             ]
             if candidates:
                 candidates.sort(key=lambda n: (len(n.edges))) 
@@ -722,6 +706,7 @@ class Anonymization(Graph):
                     node for node in self.G_prime.N 
                     if not node.Anonymized 
                     and node.node_id != owning_vertex.node_id
+                    and node.node_id not in [node.node_id for node in component_to_be_matched]
                 ]
                 if candidates:
                     candidates.sort(key=lambda n: (len(n.edges)))  
@@ -732,15 +717,15 @@ class Anonymization(Graph):
                             member.Anonymized = False
                         self.anonymized_groups.remove(anonymized_group)
                 else:
-                    raise ValueError("No more candidates available.")
+                    raise ValueError("No more candidates available for anonymization.")
             component.append(selected)
             selected.addEdge(owning_vertex.node_id)
             owning_vertex.addEdge(selected.node_id)
             
         if not comp_v:
-            addVertexToEmptyComponent(comp_v, seed_vertex)
+            addVertexToEmptyComponent(comp_v, comp_u ,seed_vertex)
         if not comp_u:
-            addVertexToEmptyComponent(comp_u, candidate_vertex)   
+            addVertexToEmptyComponent(comp_u, comp_v , candidate_vertex)   
             
         # Step 1: Find starting nodes for BFS
         start_v, start_u = find_starting_nodes()
