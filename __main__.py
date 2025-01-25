@@ -6,32 +6,46 @@ import argparse
 def main():
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--k', type=int, default=3, help='Example k value')
+    parser.add_argument('--k', type=int, default=2, help='Example k value')
     parser.add_argument('--alpha', type=float, default=1.0, help='Weight for alpha in cost function')
     parser.add_argument('--beta', type=float, default=1.0, help='Weight for beta in cost function')
     parser.add_argument('--gamma', type=float, default=1.0, help='Weight for gamma in cost function')
-    parser.add_argument('--file_path', type=str, default='test.csv', help='Path to the CSV file')
+    parser.add_argument('--nodes_file_path', type=str, default='minimal_nodes.csv', help='Path to the CSV file')
+    parser.add_argument('--edges_file_path', type=str, default='minimal_edges.csv', help='Path to the CSV file')
 
     args = parser.parse_args()
 
     k = args.k
     alpha, beta, gamma = args.alpha, args.beta, args.gamma
-    file_path = args.file_path
+    nodes_file_path = args.nodes_file_path
+    edges_file_path = args.edges_file_path
     graph = Graph()
 # \                             ** PREPARE PHASE **
-    with open(file_path, mode='r') as file:
-        csv_reader = csv.reader(file)
-        next(csv_reader)  
+    with open(nodes_file_path, mode='r') as nodes_file:
+        csv_reader = csv.reader(nodes_file)
+        next(csv_reader)  # Skip the header row
         for row in csv_reader:
-            id_1, id_2, label = int(row[0]), int(row[1]), row[2]
+            id_1, label = int(row[0]), row[1]
             
-            # Handle the first node
+            # Handle the node
             node1 = graph.getNode(id_1)
             if node1 is None:
                 node1 = Node(id_1, label)
                 graph.addVertex(node1)
             elif node1.label is None:
                 node1.label = label
+
+    # Step 2: Read and process edges CSV
+    with open(edges_file_path, mode='r') as edges_file:
+        csv_reader = csv.reader(edges_file)
+        next(csv_reader)  # Skip the header row
+        for row in csv_reader:
+            id_1, id_2 = int(row[0]), int(row[1])
+            
+            node1 = graph.getNode(id_1)
+            if node1 is None:
+                node1 = Node(id_1, None)
+                graph.addVertex(node1)
             
             node2 = graph.getNode(id_2)
             if node2 is None:
@@ -40,29 +54,6 @@ def main():
             
             node1.addEdge(id_2)
             node2.addEdge(id_1)
-
-
-    #   C1:
-    # (0, 2, 'Student', 'Student')
-    # (17, 4, 'Student', 'Student')
-    # (17, 5, 'Student', 'Student')
-    # (17, 18, 'Student', 'Student')
-    # (17, 22, 'Student', 'Student')
-    # (3, 0, 'Professional', 'Student')
-    # (3, 17, 'Professional', 'Student')
-    
-    
-    #    (7, 4, 'Student', 'Student')
-    # (7, 5, 'Student', 'Student')
-    # (7, 22, 'Student', 'Student')
-    # (18, 7, 'Student', 'Student')
-    # (18, 26, 'Student', 'Student')
-    # (26, 3, 'Student', 'Professional')
-    # (3, 7, 'Professional', 'Student')
-
-    # for node in sorted(graph.N, key=lambda n: n.label):
-    #     print(node)
-    # print("\n\n")
     
 # \                             ** NEIGHBORHOODS EXTRACTION AND CODING **
     anon = Anonymization(graph,k)
@@ -95,6 +86,8 @@ def main():
         # Anonymize the neighborhoods
         # Anonymize Neighbor(SeedVertex) and Neighbor(u1)
         anon.anonymize_neighborhoods([SeedVertex] + [CandidateSet[0]])
+        for node in [SeedVertex] + CandidateSet:
+            node.Anonymized = True
         
         # Anonymize Neighbor(uj) and {Neighbor(SeedVertex), Neighbor(u1), ..., Neighbor(uj-1)}
         for j in range(1, len(CandidateSet)):

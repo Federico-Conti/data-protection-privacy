@@ -366,28 +366,38 @@ class Anonymization(Graph):
 
         # Greedy matching of edges within the components
         for edge_u in dfs_u:
-            best_match_cost = float('inf')
-            for edge_v in dfs_v:
-                if edge_v in matched_v:  # Skip already matched edges
-                    continue
+            best_match_cost = 999999
+            best_match_edge_v = None  # Track the edge in dfs_v that gives the best match
 
-                # Compute label cost and degree cost for matching edges
-                if edge_u[1] is None and edge_v[1] is None:
-                    label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
-                    vertex_addition_cost = 0
-                    match_cost = label_cost + vertex_addition_cost
-                elif edge_u[1] is None or edge_v[1] is None:
-                    label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
-                    vertex_addition_cost = 1
-                    match_cost = label_cost + vertex_addition_cost
-                else:
-                    label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
-                    degree_cost = abs(len(self.G_prime.getNode(edge_u[1]).edges) - len(self.G_prime.getNode(edge_v[1]).edges))
-                    match_cost = label_cost + degree_cost
+            if dfs_v:
+                for edge_v in dfs_v:
+                    if edge_v in matched_v:  # Skip already matched edges
+                        continue
 
-                # Track the best match
-                if match_cost < best_match_cost:
-                    best_match_cost = match_cost
+                    # Compute label cost and degree cost for matching edges
+                    if edge_u[1] is None and edge_v[1] is None:
+                        label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
+                        vertex_addition_cost = 0
+                        match_cost = label_cost + vertex_addition_cost
+                    elif edge_u[1] is None or edge_v[1] is None:
+                        label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
+                        vertex_addition_cost = 1
+                        match_cost = label_cost + vertex_addition_cost
+                    else:
+                        label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
+                        degree_cost = abs(len(self.G_prime.getNode(edge_u[1]).edges) - len(self.G_prime.getNode(edge_v[1]).edges))
+                        match_cost = label_cost + degree_cost
+
+                    # Track the best match
+                    if match_cost < best_match_cost:
+                        best_match_cost = match_cost
+                        best_match_edge_v = edge_v
+            else:
+                match_cost = 2
+
+            # After finding the best match for edge_u, add it to the matched set
+            if best_match_edge_v is not None:
+                matched_v.add(best_match_edge_v)
 
             # Add the best match cost to the total cost
             cost += best_match_cost
@@ -478,10 +488,9 @@ class Anonymization(Graph):
                             best_match = (candidate_comp, candidate_dfs)
 
                     if best_match:
-                        candidate_comp, candidate_dfs = best_match
+                        candidate_comp, candidate_dfs = best_match                           
                         self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
                         self.extract_neighborhoods()
-                        
                         neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
                         seed_neighborhood = neighborhoods[seed_vertex]
                         candidate_neighborhood = neighborhoods[candidate_vertex]
