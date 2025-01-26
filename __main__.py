@@ -56,7 +56,7 @@ def main():
             node2.addEdge(id_1)
     
 # \                             ** NEIGHBORHOODS EXTRACTION AND CODING **
-    anon = Anonymization(graph,k)
+    anon = Anonymization(graph,k,alpha, beta, gamma)
     anon.extract_neighborhoods()
     
     VertexList = anon.G_prime.N
@@ -74,7 +74,7 @@ def main():
         SeedVertex = VertexListCopy.pop(0)
 
         # Calculate costs for all remaining vertices
-        costs = [(anon.cost(SeedVertex, v, alpha, beta, gamma), v) for v in VertexListCopy]
+        costs = [(anon.cost(anon.G_prime.neighborhoods[SeedVertex], anon.G_prime.neighborhoods[v], alpha, beta, gamma), v) for v in VertexListCopy]
         costs.sort(key=lambda x: x[0])  # Sort by cost
 
         # Create candidate set

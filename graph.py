@@ -28,6 +28,12 @@ class Neighborhood:
     def __init__(self, components, NCC):
         self.components = components
         self.NCC = NCC  # List of nodes in the neighborhood
+    
+    def getNumberOfEdges(self,component):
+        edges = 0
+        for node in component:
+            edges += len(node.getEdgesInComponent(component))
+        return edges//2
    
 
 class Graph:

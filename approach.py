@@ -5,7 +5,7 @@ import random
 class Anonymization(Graph):
 
     
-    def __init__(self, G: Graph, k: int):
+    def __init__(self, G: Graph, k: int, alpha: float , beta: float , gamma: float ):
         self.G = G
         self.G_prime = self.G
         self.k = k
@@ -15,7 +15,10 @@ class Anonymization(Graph):
             "Professional": 2,
             "Student": 1,
         }
-
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
+        
     def printAllNodes(self):
       for v in self.G_prime.N:
         print(v)
@@ -254,7 +257,7 @@ class Anonymization(Graph):
           
             
     
-    def ncp(self, label1, label2):
+    def compare_ncp(self, label1, label2):
         """
         Compute the Normalized Certainty Penalty (NCP) for label generalization.
         Use the existing get_generalization_level method to determine levels.
@@ -266,19 +269,48 @@ class Anonymization(Graph):
         Returns:
             float: The NCP value, normalized by the max hierarchy level.
         """
-        # Retrieve the generalization levels using the existing method
+        if not label1:
+            return self.ncp(label1)
+        if not label2:
+            return self.ncp(label2)
+        
         level1 = self.get_generalization_level(label1)
         level2 = self.get_generalization_level(label2)
 
-        # If the labels are identical, no penalty
         if level1 == level2:
             return 0
-
-        # Normalize the difference by the maximum level
-        max_level = 3  # The max hierarchy level (assumes hierarchy levels are static)
+        max_level = self.get_generalization_level("*")
         return abs(level1 - level2) / max_level
 
-    def cost(self, u, v, alpha, beta, gamma):
+        
+        
+    def ncp(self, label):
+        """
+        Compute the Normalized Certainty Penalty (NCP) for label generalization.
+
+        Args:
+            label (str): The label to compute the NCP for.
+
+        Returns:
+            float: The NCP value for the label.
+        """
+        level = self.get_generalization_level(label)
+        max_level = self.get_generalization_level("*")
+        return level / max_level
+        
+    def cost_aux(self, neighborhood_u, comp_u, dfs_u, neighborhood_v, comp_v, dfs_v, alpha, beta, gamma):
+        
+        comp_edge_cost = abs(neighborhood_u.getNumberOfEdges(comp_u) - neighborhood_v.getNumberOfEdges(comp_v))
+        
+        comp_vertex_addition_cost = abs(len(comp_u) - len(comp_v))
+        
+        comp_label_cost = sum(self.compare_ncp(edge_u[2], edge_v[2]) + self.compare_ncp(edge_u[3], edge_v[3]) for edge_u, edge_v in zip(dfs_u, dfs_v))
+        
+        match_cost = alpha * comp_label_cost + beta * comp_edge_cost + gamma * comp_vertex_addition_cost
+
+        return match_cost
+        
+    def cost(self, neighborhood_v, neighborhood_u, alpha, beta, gamma):
         """
         Compute the anonymization cost between two neighborhoods using greedy matching.
 
@@ -292,118 +324,47 @@ class Anonymization(Graph):
         Returns:
             float: The calculated anonymization cost.
         """
-        # Retrieve Neighborhood objects for nodes u and v
-        neighborhood_u = self.G_prime.neighborhoods[u]
-        neighborhood_v = self.G_prime.neighborhoods[v]
-
-        # Initialize costs
-        label_cost = 0
-        edge_cost = 0
-        vertex_addition_cost = 0
+        total_match_cost = 0
 
         # Track matched components by their indices
-        matched_u = set()
-        matched_v = set()
+        matched_u = []
+        matched_v = []
 
         # Greedy matching of components using DFS codes
-        for i, dfs_u in enumerate(neighborhood_u.NCC):
-            best_match_cost = float('inf')
-            best_match_idx = None
+        best_match_cost = float('inf')
+        best_match_idx_i = None
+        best_match_idx_j = None
+        
+        while len(matched_u) < len(neighborhood_u.components) and len(matched_v) < len(neighborhood_v.components):
+            for i, (comp_u, dfs_u) in enumerate(zip(neighborhood_u.components, neighborhood_u.NCC)):
 
-            for j, dfs_v in enumerate(neighborhood_v.NCC):
-                if j in matched_v:  # Skip already matched components
-                    continue
-
-                # Compute the cost of matching the two components
-                match_cost = self.match_components_cost(dfs_u, dfs_v)
-
-                # Track the best match
-                if match_cost < best_match_cost:
-                    best_match_cost = match_cost
-                    best_match_idx = j
-
-            # If a match is found, update costs and mark components as matched
-            if best_match_idx is not None:
-                matched_u.add(i)
-                matched_v.add(best_match_idx)
-                label_cost += best_match_cost
-
-        # Handle unmatched components in u
-        for i, dfs_u in enumerate(neighborhood_u.NCC):
-            if i not in matched_u:
-                label_cost += self.generalization_cost(dfs_u)
-                edge_cost += len(dfs_u)  # Edges needed to link this unmatched component
-
-        # Handle unmatched components in v
-        for j, dfs_v in enumerate(neighborhood_v.NCC):
-            if j not in matched_v:
-                label_cost += self.generalization_cost(dfs_v)
-                edge_cost += len(dfs_v)  # Edges needed to link this unmatched component
-
-        # Compute vertex addition cost
-        size_u = sum(len(component) for component in neighborhood_u.components)
-        size_v = sum(len(component) for component in neighborhood_v.components)
-        vertex_addition_cost = abs(size_u - size_v)
-
-        # Total cost calculation
-        total_cost = alpha * label_cost + beta * edge_cost + gamma * vertex_addition_cost
-        return total_cost
-
-
-    def match_components_cost(self, dfs_u, dfs_v):
-        """
-        Compute the cost of matching two components using their DFS codes.
-
-        Args:
-            dfs_u (list): First component's DFS code.
-            dfs_v (list): Second component's DFS code.
-
-        Returns:
-            float: The cost of matching the two components.
-        """
-        cost = 0
-        matched_v = set()  # Track matched edges in dfs_v
-
-        # Greedy matching of edges within the components
-        for edge_u in dfs_u:
-            best_match_cost = 999999
-            best_match_edge_v = None  # Track the edge in dfs_v that gives the best match
-
-            if dfs_v:
-                for edge_v in dfs_v:
-                    if edge_v in matched_v:  # Skip already matched edges
-                        continue
-
-                    # Compute label cost and degree cost for matching edges
-                    if edge_u[1] is None and edge_v[1] is None:
-                        label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
-                        vertex_addition_cost = 0
-                        match_cost = label_cost + vertex_addition_cost
-                    elif edge_u[1] is None or edge_v[1] is None:
-                        label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
-                        vertex_addition_cost = 1
-                        match_cost = label_cost + vertex_addition_cost
-                    else:
-                        label_cost = self.ncp(edge_u[2], edge_v[2]) + self.ncp(edge_u[3], edge_v[3])
-                        degree_cost = abs(len(self.G_prime.getNode(edge_u[1]).edges) - len(self.G_prime.getNode(edge_v[1]).edges))
-                        match_cost = label_cost + degree_cost
-
+                for j, (comp_v, dfs_v) in enumerate(zip(neighborhood_v.components, neighborhood_v.NCC)):
+                    
+                    match_cost = self.cost_aux(neighborhood_u, comp_u,dfs_u, neighborhood_v, comp_v,dfs_v, alpha, beta, gamma)
+                    
                     # Track the best match
                     if match_cost < best_match_cost:
                         best_match_cost = match_cost
-                        best_match_edge_v = edge_v
-            else:
-                match_cost = 2
+                        best_match_idx_j = j
+                        best_match_idx_i = i
 
-            # After finding the best match for edge_u, add it to the matched set
-            if best_match_edge_v is not None:
-                matched_v.add(best_match_edge_v)
+            # If a match is found, update costs and mark components as matched
+            if best_match_idx_j is not None :
+                matched_u.append(best_match_idx_i)
+                matched_v.append(best_match_idx_j)
+                total_match_cost += total_match_cost
 
-            # Add the best match cost to the total cost
-            cost += best_match_cost
+        # Handle unmatched components
+        for i, dfs_u in enumerate(neighborhood_u.NCC):
+            if i not in matched_u:
+                total_match_cost += self.generalization_cost(dfs_u)*alpha
+        
+       # Handle unmatched components
+        for i, dfs_v in enumerate(neighborhood_v.NCC):
+            if i not in matched_v:
+                total_match_cost += self.generalization_cost(dfs_v)*alpha
 
-        return cost
-
+        return total_match_cost
 
     def generalization_cost(self, dfs_code):
         """
@@ -417,7 +378,7 @@ class Anonymization(Graph):
         """
         cost = 0
         for edge in dfs_code:
-            cost += self.ncp(edge[2], '*') + self.ncp(edge[3], '*')  # Generalize to the most abstract label
+            cost += self.compare_ncp(edge[2], '*') + self.compare_ncp(edge[3], '*')  # Generalize to the most abstract label
         return cost
     
     def anonymize_neighborhoods(self, candidate_vertices):
@@ -482,7 +443,7 @@ class Anonymization(Graph):
                     best_match = None
 
                     for candidate_comp, candidate_dfs in unmatched_candidate:
-                        match_cost = self.match_components_cost(seed_dfs, candidate_dfs)
+                        match_cost = self.cost_aux(seed_neighborhood, seed_comp, seed_dfs, candidate_neighborhood, candidate_comp, candidate_dfs, self.alpha, self.beta, self.gamma)
                         if match_cost < best_match_cost:
                             best_match_cost = match_cost
                             best_match = (candidate_comp, candidate_dfs)
@@ -563,7 +524,7 @@ class Anonymization(Graph):
                     degree_diff = abs(len(node_v.getEdgesInComponent(comp_v)) - len(node_u.getEdgesInComponent(comp_u)))
 
                     # Normalize NCP cost (if needed)
-                    ncp_cost = self.ncp(node_v.label, node_u.label)
+                    ncp_cost = self.compare_ncp(node_v.label, node_u.label)
 
 
                     # Calculate total cost
@@ -672,7 +633,7 @@ class Anonymization(Graph):
             ]
             
             if candidates:
-                candidates.sort(key=lambda n: (len(n.edges), self.ncp(node_to_be_matched.label, n.label))) 
+                candidates.sort(key=lambda n: (len(n.edges), self.compare_ncp(node_to_be_matched.label, n.label))) 
                 selected = candidates[0]
             else:
                 candidates = [
@@ -683,7 +644,7 @@ class Anonymization(Graph):
                     and node.node_id not in [node.node_id for node in comp_u]
                 ]
                 if candidates:
-                    candidates.sort(key=lambda n: (len(n.edges), self.ncp(node_to_be_matched.label, n.label)))  
+                    candidates.sort(key=lambda n: (len(n.edges), self.compare_ncp(node_to_be_matched.label, n.label)))  
                     selected = candidates[0]
                     anonymized_group = next((group for group in self.anonymized_groups if selected in group), None)
                     if anonymized_group:
