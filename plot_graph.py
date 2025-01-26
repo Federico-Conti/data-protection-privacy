@@ -1,49 +1,44 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 import pandas as pd
-import csv
 
-# Define the path to your CSV file
-csv_file_path = 'real.csv'
+# Define paths to your CSV files
+node_csv_path = 'minimal_nodes.csv'  # Contains id, label
+edge_csv_path = 'minimal_edges.csv'  # Contains id_1, id_2
 
-data = {"id_1": [], "id_2": [], "label": []}
-
-# Open the CSV file
-with open(csv_file_path, mode='r') as file:
-    # Create a CSV reader object
-    csv_reader = csv.reader(file)
-    
-    # Skip the header
-    next(csv_reader)
-    
-    # Iterate over the rows in the CSV file
-    for row in csv_reader:
-        data["id_1"].append(row[0])
-        data["id_2"].append(row[1])
-        data["label"].append(row[2])
-
-# Create a DataFrame from the data
-df = pd.DataFrame(data)
+# Read nodes and edges into DataFrames
+nodes_df = pd.read_csv(node_csv_path)
+edges_df = pd.read_csv(edge_csv_path)
 
 # Create a graph
-G = nx.from_pandas_edgelist(df, "id_1", "id_2")
+G = nx.Graph()
+
+# Add nodes with labels
+for _, row in nodes_df.iterrows():
+    G.add_node(row['id'], label=row['label'])
+
+# Add edges
+for _, row in edges_df.iterrows():
+    G.add_edge(row['id_1'], row['id_2'])
 
 # Draw the graph
-plt.figure(figsize=(20, 20))  # Increase figure size
-pos = nx.spring_layout(G, seed=42, k=0.5, iterations=50)  # Adjust k and iterations for spacing
+plt.figure(figsize=(10, 10))  # Adjust figure size for better visualization
+pos = nx.spring_layout(G, seed=42)  # Position nodes using the spring layout
 
-# Draw nodes and edges with improved visualization
+# Draw nodes and edges
 nx.draw_networkx_nodes(G, pos, node_size=700, node_color="skyblue")
-nx.draw_networkx_edges(G, pos, edge_color="gray", alpha=0.5)
+nx.draw_networkx_edges(G, pos, edge_color="gray", alpha=0.7)
 
-# Combine node id and label for display
-combined_labels = {row["id_1"]: f'{row["id_1"]}: {row["label"]}' for _, row in df.iterrows()}
+# Prepare labels for nodes
+labels = {node: f"{node}: {data['label']}" for node, data in G.nodes(data=True)}
 
-# Draw the combined labels
-nx.draw_networkx_labels(G, pos, labels=combined_labels, font_size=12, font_color="black")
+# Draw labels
+nx.draw_networkx_labels(G, pos, labels=labels, font_size=10, font_color="black")
 
-# Set title and save the graph
-plt.title("Undirected Graph Visualization", fontsize=20)
-plt.axis("off")  # Hide the axes for a cleaner look
-plt.savefig("before_real.png")
+# Add title and clean up plot
+plt.title("Graph Visualization", fontsize=16)
+plt.axis("off")  # Turn off the axes
 
+# Show or save the graph
+plt.savefig("before.png")  # Save as an image
+plt.show()
