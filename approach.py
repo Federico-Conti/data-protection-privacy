@@ -631,9 +631,8 @@ class Anonymization(Graph):
                 if not node.Anonymized 
                 and node.node_id != candidate_vertex.node_id
                 and node.node_id != seed_vertex.node_id
-                # and node.node_id not in [node.node_id for node in comp_v]
-                # and node.node_id not in [node.node_id for node in comp_u]
-                and node.node_id not in [node.node_id for node in component]
+                and node.node_id not in [node.node_id for node in comp_v]
+                and node.node_id not in [node.node_id for node in comp_u]
             ]
             
             if candidates:
@@ -644,9 +643,8 @@ class Anonymization(Graph):
                     node for node in self.G_prime.N 
                     if node.node_id not in [node.node_id for node in component]
                     and node.node_id != seed_vertex.node_id
-                    # and node.node_id not in [node.node_id for node in comp_v]
-                    # and node.node_id not in [node.node_id for node in comp_u]
-                    and node.node_id not in [node.node_id for node in component]
+                    and node.node_id not in [node.node_id for node in comp_v]
+                    and node.node_id not in [node.node_id for node in comp_u]
                 ]
                 if candidates:
                     candidates.sort(key=lambda n: (len(n.edges), self.compare_ncp(node_to_be_matched.label, n.label)))  
@@ -679,8 +677,7 @@ class Anonymization(Graph):
             else:
                 candidates = [
                     node for node in self.G_prime.N 
-                    if not node.Anonymized 
-                    and node.node_id != owning_vertex.node_id
+                    if node.node_id != owning_vertex.node_id
                     and node.node_id not in [node.node_id for node in component_to_be_matched]
                 ]
                 if candidates:
@@ -705,7 +702,6 @@ class Anonymization(Graph):
         # Step 1: Find starting nodes for BFS
         start_v, start_u = find_starting_nodes()
         
-        # Mark all nodes in both components as not visited
 
         # Step 2: Perform BFS and modify components
         bfs_and_match(start_v, start_u, comp_v, comp_u) #
