@@ -2,3 +2,4 @@ pandas
 kagglehub
 matplotlib
 networkx
+python-dotenv

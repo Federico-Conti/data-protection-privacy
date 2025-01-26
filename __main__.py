@@ -2,6 +2,13 @@ import csv
 from approach import Anonymization
 from graph import Graph, Node
 import argparse
+import os
+
+from dotenv import load_dotenv
+load_dotenv()
+
+EDGES_PATH = os.getenv("EDGES_PATH")
+NODES_PATH = os.getenv("NODES_PATH")
 
 def main():
 
@@ -10,8 +17,8 @@ def main():
     parser.add_argument('--alpha', type=float, default=1.0, help='Weight for alpha in cost function')
     parser.add_argument('--beta', type=float, default=1.0, help='Weight for beta in cost function')
     parser.add_argument('--gamma', type=float, default=1.0, help='Weight for gamma in cost function')
-    parser.add_argument('--nodes_file_path', type=str, default='minimal_nodes.csv', help='Path to the CSV file')
-    parser.add_argument('--edges_file_path', type=str, default='minimal_edges.csv', help='Path to the CSV file')
+    parser.add_argument('--nodes_file_path', type=str, default= NODES_PATH, help='Path to the CSV file')
+    parser.add_argument('--edges_file_path', type=str, default=EDGES_PATH, help='Path to the CSV file')
 
     args = parser.parse_args()
 

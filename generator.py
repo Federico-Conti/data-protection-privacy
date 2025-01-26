@@ -1,44 +1,60 @@
 import pandas as pd
 import random
 from faker import Faker
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+EDGES_PATH = os.getenv("EDGES_PATH")
+NODES_PATH = os.getenv("NODES_PATH")
 
 # Initialize Faker and set random seed for reproducibility
 fake = Faker()
 random.seed(42)
 
 # Helper function to generate hierarchical names with probability
-def generate_name(role_level):
-    # Assign probabilities to "Student" and "Professional"
+def generate_name():
     role = random.choices(
-        ["*","Student", "Professional",fake.first_name()],  # Choices
-        weights=[0.1,0.1,0.1,0.7],          # Probabilities
-        k=1                          # Number of selections
+        ["*", "Student", "Professional", fake.first_name()],  # Choices
+        weights=[0.1, 0.1, 0.1, 0.7],                           # Probabilities
+        k=1
     )[0]
-    return f"{role}"
+    return role
 
-# Generate graph data
-def generate_graph_data(num_vertices):
-    data = []
-    ids = list(range(num_vertices))
-    assigned_names = {}
+# Generate nodes and labels
+def generate_node_data(num_vertices):
+    node_data = []
+    for node_id in range(1, num_vertices + 1):
+        label = generate_name()
+        node_data.append({"id": node_id, "label": label})
+    return pd.DataFrame(node_data)
 
-    for id_1 in ids:
-        # Assign a name to each vertex based on a hierarchy
-        if id_1 not in assigned_names:
-            assigned_names[id_1] = generate_name(random.randint(0, 3))
-
-        # Generate random edges
+# Generate edges
+def generate_edge_data(num_vertices):
+    edge_data = []
+    for node_id in range(1, num_vertices + 1):
         num_links = random.randint(1, 3)  # Each vertex connects to 1-3 other vertices
         for _ in range(num_links):
-            id_2 = random.choice(ids)
-            if id_1 != id_2:  # Avoid self-loops
-                data.append({"id_1": id_1, "id_2": id_2, "name": assigned_names[id_1]})
-                
-    return pd.DataFrame(data)
+            target_id = random.randint(1, num_vertices)
+            if node_id != target_id:  # Avoid self-loops
+                edge_data.append({"id_1": node_id, "id_2": target_id})
+    return pd.DataFrame(edge_data)
 
-# Generate and display the dataset
-graph_data = generate_graph_data(num_vertices=30)
-file_path = "./real.csv"
-graph_data.to_csv(file_path, index=False)
+# Generate and save the datasets
+def generate_graph_csv(num_vertices, node_file, edge_file):
+    # Generate nodes and edges
+    nodes = generate_node_data(num_vertices)
+    edges = generate_edge_data(num_vertices)
 
-print("Graph data generated and saved to:", file_path)
+    # Save to CSV files
+    nodes.to_csv(node_file, index=False)
+    edges.to_csv(edge_file, index=False)
+
+    print(f"Node data saved to: {node_file}")
+    print(f"Edge data saved to: {edge_file}")
+
+# Parameters
+num_vertices = 30
+
+# Generate the graph CSV files
+generate_graph_csv(num_vertices, EDGES_PATH, NODES_PATH)

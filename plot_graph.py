@@ -1,14 +1,18 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 import pandas as pd
+import os
 
-# Define paths to your CSV files
-node_csv_path = 'minimal_nodes.csv'  # Contains id, label
-edge_csv_path = 'minimal_edges.csv'  # Contains id_1, id_2
+from dotenv import load_dotenv
+load_dotenv()
+
+EDGES_PATH = os.getenv("EDGES_PATH")
+NODES_PATH = os.getenv("NODES_PATH")
+BEFORE_PLOT_PATH = os.getenv("BEFORE_PLOT_PATH")
 
 # Read nodes and edges into DataFrames
-nodes_df = pd.read_csv(node_csv_path)
-edges_df = pd.read_csv(edge_csv_path)
+nodes_df = pd.read_csv(NODES_PATH)
+edges_df = pd.read_csv(EDGES_PATH)
 
 # Create a graph
 G = nx.Graph()
@@ -40,5 +44,5 @@ plt.title("Graph Visualization", fontsize=16)
 plt.axis("off")  # Turn off the axes
 
 # Show or save the graph
-plt.savefig("before.png")  # Save as an image
+plt.savefig(BEFORE_PLOT_PATH)  # Save as an image
 plt.show()
