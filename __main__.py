@@ -6,7 +6,7 @@ import argparse
 def main():
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--k', type=int, default=2, help='Example k value')
+    parser.add_argument('--k', type=int, default=3, help='Example k value')
     parser.add_argument('--alpha', type=float, default=1.0, help='Weight for alpha in cost function')
     parser.add_argument('--beta', type=float, default=1.0, help='Weight for beta in cost function')
     parser.add_argument('--gamma', type=float, default=1.0, help='Weight for gamma in cost function')
@@ -86,8 +86,9 @@ def main():
         # Anonymize the neighborhoods
         # Anonymize Neighbor(SeedVertex) and Neighbor(u1)
         anon.anonymize_neighborhoods([SeedVertex] + [CandidateSet[0]])
-        for node in [SeedVertex] + CandidateSet:
-            node.Anonymized = True
+        if len(CandidateSet) == 1:
+            for node in [SeedVertex] + CandidateSet:
+                node.Anonymized = True
         
         # Anonymize Neighbor(uj) and {Neighbor(SeedVertex), Neighbor(u1), ..., Neighbor(uj-1)}
         for j in range(1, len(CandidateSet)):

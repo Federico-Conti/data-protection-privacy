@@ -428,6 +428,8 @@ class Anonymization(Graph):
                     for j in range(len(candidate_neighborhood.NCC)) if j not in matched_candidate
                 ]
                 
+                if not unmatched_seed and not unmatched_candidate:
+                    break
 
                 if not unmatched_seed:
                     for component in unmatched_candidate:
@@ -436,28 +438,29 @@ class Anonymization(Graph):
                 if not unmatched_candidate:
                     for component in unmatched_seed:
                         unmatched_candidate.append(([],[]))
-                    
-            
+                
+                best_candidate_match = None
+                best_seed_match = None        
+                
                 for seed_comp, seed_dfs in unmatched_seed:
                     best_match_cost = float('inf')
-                    best_match = None
 
                     for candidate_comp, candidate_dfs in unmatched_candidate:
                         match_cost = self.cost_aux(seed_neighborhood, seed_comp, seed_dfs, candidate_neighborhood, candidate_comp, candidate_dfs, self.alpha, self.beta, self.gamma)
                         if match_cost < best_match_cost:
                             best_match_cost = match_cost
-                            best_match = (candidate_comp, candidate_dfs)
+                            best_candidate_match = (candidate_comp, candidate_dfs)
+                            best_seed_match = (seed_comp, seed_dfs)
 
-                    if best_match:
-                        candidate_comp, candidate_dfs = best_match                           
-                        self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
-                        self.extract_neighborhoods()
-                        neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
-                        seed_neighborhood = neighborhoods[seed_vertex]
-                        candidate_neighborhood = neighborhoods[candidate_vertex]
-                        
-                        break
-            
+                if best_seed_match and best_candidate_match:	
+                    seed_comp, seed_dfs = best_seed_match
+                    candidate_comp, candidate_dfs = best_candidate_match                       
+                    self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
+                    self.extract_neighborhoods()
+                    neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
+                    seed_neighborhood = neighborhoods[seed_vertex]
+                    candidate_neighborhood = neighborhoods[candidate_vertex]
+                    
             # Print all NCCs in a pretty way
             for vertex in candidate_vertices:
                 neighborhood = self.G_prime.neighborhoods[vertex]
@@ -628,8 +631,9 @@ class Anonymization(Graph):
                 if not node.Anonymized 
                 and node.node_id != candidate_vertex.node_id
                 and node.node_id != seed_vertex.node_id
-                and node.node_id not in [node.node_id for node in comp_v]
-                and node.node_id not in [node.node_id for node in comp_u]
+                # and node.node_id not in [node.node_id for node in comp_v]
+                # and node.node_id not in [node.node_id for node in comp_u]
+                and node.node_id not in [node.node_id for node in component]
             ]
             
             if candidates:
@@ -640,8 +644,9 @@ class Anonymization(Graph):
                     node for node in self.G_prime.N 
                     if node.node_id not in [node.node_id for node in component]
                     and node.node_id != seed_vertex.node_id
-                    and node.node_id not in [node.node_id for node in comp_v]
-                    and node.node_id not in [node.node_id for node in comp_u]
+                    # and node.node_id not in [node.node_id for node in comp_v]
+                    # and node.node_id not in [node.node_id for node in comp_u]
+                    and node.node_id not in [node.node_id for node in component]
                 ]
                 if candidates:
                     candidates.sort(key=lambda n: (len(n.edges), self.compare_ncp(node_to_be_matched.label, n.label)))  
