@@ -1,3 +1,4 @@
+import heapq as hp
 
 class Node:
     def __init__(self, node_id, label):
@@ -5,11 +6,11 @@ class Node:
         self.label = label
         self.Visited = False
         self.Anonymized = False
-        self.edges = []  # List to store connected node IDs
+        self.edges = []  # List of neighbors (Node objects)
         
     def addEdge(self, neighbor_id):
         if neighbor_id not in self.edges:  # ANoid duplicate edges
-            self.edges.append(neighbor_id)
+            hp.heappush(self.edges, neighbor_id)
             
     def getEdgesInComponent(self, component):
         edgesInComponent = []

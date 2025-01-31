@@ -141,6 +141,7 @@ class Anonymization(Graph):
             DFS--> return a list of tuple (id1,id2,l1,l2)
             
             """
+            print("Starting node: ", node.node_id)
             FW = self.DFS(node,component)
             R_aux = FW
   
@@ -163,6 +164,8 @@ class Anonymization(Graph):
 
             R_aux.sort(key=cmp_to_key(dfs_edge_comparator))
             R.append(R_aux)
+            
+            print("DFS: ", R_aux)
 
         R.sort(key=lambda x: (len(x), [(edge[2], edge[3], edge[0], edge[1]) for edge in x])) #restituiamo la best DFS per ogni C 
  
@@ -228,7 +231,7 @@ class Anonymization(Graph):
 
         for node in self.G_prime.N:
             components = self.extract_components(node)
-
+            
             # Create a list of tuples (component, DFS code)
             component_to_dfs = []
             for component in components:
@@ -611,18 +614,26 @@ class Anonymization(Graph):
                         neighbors_v.add(new_neighbor)
                     else:
                         break
-
+                    
+                for neighbor_id in reversed(list(neighbors_u)):
+                    neighbor_node = self.G_prime.getNode(neighbor_id)
+                    if neighbor_node and neighbor_id not in visited_u and all(neighbor_id != node.node_id for node in queue_u):
+                        if neighbor_id in neighbors_v:
+                            queue_v.append(neighbor_node)
+                            queue_u.append(neighbor_node)
+                            neighbors_u.remove(neighbor_id)
+                            neighbors_v.remove(neighbor_id)
                 # Add neighbors to the queue for further traversal
                 for neighbor_id in reversed(list(neighbors_u)):
                     neighbor_node = self.G_prime.getNode(neighbor_id)
-                    if neighbor_node and neighbor_id not in visited_u:
+                    if neighbor_node and neighbor_id not in visited_u and all(neighbor_id != node.node_id for node in queue_u):
                         queue_u.append(neighbor_node)
 
                 for neighbor_id in reversed(list(neighbors_v)):
                     neighbor_node = self.G_prime.getNode(neighbor_id)
-                    if neighbor_node and neighbor_id not in visited_v:
+                    if neighbor_node and neighbor_id not in visited_v and all(neighbor_id != node.node_id for node in queue_v):	
                         queue_v.append(neighbor_node)
-                    
+                   
                 
                 
         def addVertexToComponent(cur_component_vertex, node_to_be_matched ,component, owning_vertex):
