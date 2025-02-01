@@ -72,27 +72,36 @@ class Anonymization(Graph):
         stack = [(start_node, None)]  # (current_node, parent_node)
         visited = set()
         dfs_result = []
+        
+        mapping = {}
+        counter = 0
 
         while stack:
             current_node, parent_node = stack.pop()
-
+            
             if current_node.node_id in visited:
                 continue
+            
+            mapping[current_node.node_id] = counter
+            counter += 1
 
             visited.add(current_node.node_id)
 
             # If there's a parent, record the edge information
             if parent_node is not None:
                 dfs_result.append(
-                    (parent_node.node_id, current_node.node_id, parent_node.label, current_node.label)
+                    (mapping[parent_node.node_id], mapping[current_node.node_id], parent_node.label, current_node.label)
                 )
 
-            # Add neighbors to the stack for further exploration
             for neighbor_id in current_node.getEdgesInComponent(component):
                 neighbor = self.G_prime.getNode(neighbor_id)
-                if neighbor.node_id not in visited:
+                if neighbor_id not in visited:   
                     stack.append((neighbor, current_node))
-
+                else:
+                    if not any((mapping[current_node.node_id] == tuple[0] and mapping[neighbor_id] == tuple[1]) or (mapping[neighbor_id] == tuple[0] and mapping[current_node.node_id] == tuple[1]) for tuple in dfs_result):
+                        dfs_result.append(
+                            (mapping[current_node.node_id], mapping[neighbor_id], current_node.label, neighbor.label)                  
+                        )
         return dfs_result
 
     
@@ -142,9 +151,7 @@ class Anonymization(Graph):
             
             """
             print("Starting node: ", node.node_id)
-            FW = self.DFS(node,component)
-            R_aux = FW
-  
+            R_aux = self.DFS(node,component)
            
             # BW step
             """
@@ -157,17 +164,15 @@ class Anonymization(Graph):
                                 Node(id=6, edges=[2, 4, 5, 1, 9])]
             
             """
-            for node in component:
-                for e in node.getEdgesInComponent(component):
-                    if not any((node.node_id == tuple[0] and e == tuple[1]) or (node.node_id == tuple[1] and e == tuple[0]) for tuple in R_aux):
-                        R_aux.append((e, node.node_id, self.G_prime.getNode(e).label, node.label))
+           
 
             R_aux.sort(key=cmp_to_key(dfs_edge_comparator))
             R.append(R_aux)
             
+
             print("DFS: ", R_aux)
 
-        R.sort(key=lambda x: (len(x), [(edge[2], edge[3], edge[0], edge[1]) for edge in x])) #restituiamo la best DFS per ogni C 
+        R.sort(key=lambda x: (len(x), [(edge[2], edge[3]) for edge in x])) #restituiamo la best DFS per ogni C 
  
         return R[0] # the head is the first lessically correct
         
@@ -232,6 +237,7 @@ class Anonymization(Graph):
         for node in self.G_prime.N:
             components = self.extract_components(node)
             
+            print(f"\n\n** Start Neighborhoods Extraction for vertex {node.node_id} **")
             # Create a list of tuples (component, DFS code)
             component_to_dfs = []
             for component in components:
