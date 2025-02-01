@@ -1,5 +1,3 @@
-import heapq as hp
-
 class Node:
     def __init__(self, node_id, label):
         self.node_id = node_id
@@ -10,7 +8,8 @@ class Node:
         
     def addEdge(self, neighbor_id):
         if neighbor_id not in self.edges:  # ANoid duplicate edges
-            hp.heappush(self.edges, neighbor_id)
+            self.edges.append(neighbor_id)
+            self.edges.sort()
             
     def getEdgesInComponent(self, component):
         edgesInComponent = []

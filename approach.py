@@ -150,7 +150,6 @@ class Anonymization(Graph):
             DFS--> return a list of tuple (id1,id2,l1,l2)
             
             """
-            print("Starting node: ", node.node_id)
             R_aux = self.DFS(node,component)
            
             # BW step
@@ -169,8 +168,6 @@ class Anonymization(Graph):
             R_aux.sort(key=cmp_to_key(dfs_edge_comparator))
             R.append(R_aux)
             
-
-            print("DFS: ", R_aux)
 
         R.sort(key=lambda x: (len(x), [(edge[2], edge[3]) for edge in x])) #restituiamo la best DFS per ogni C 
  
@@ -237,7 +234,6 @@ class Anonymization(Graph):
         for node in self.G_prime.N:
             components = self.extract_components(node)
             
-            print(f"\n\n** Start Neighborhoods Extraction for vertex {node.node_id} **")
             # Create a list of tuples (component, DFS code)
             component_to_dfs = []
             for component in components:
@@ -421,7 +417,7 @@ class Anonymization(Graph):
                         if j in matched_candidate:
                             continue
                         if len(seed_dfs) == len(candidate_dfs) and all(
-                            edge_s[2:] == edge_c[2:] for edge_s, edge_c in zip(seed_dfs, candidate_dfs)
+                            edge_s == edge_c for edge_s, edge_c in zip(seed_dfs, candidate_dfs)
                         ):
                             matched_seed.add(i)
                             matched_candidate.add(j)
@@ -489,7 +485,7 @@ class Anonymization(Graph):
                     if len(comp1) != len(comp2):
                         raise ValueError("Not all NCCs are equal in candidate vertices.")
                     for edge1, edge2 in zip(comp1, comp2):
-                        if edge1[2:] != edge2[2:]:
+                        if edge1 != edge2:
                             raise ValueError("Not all NCCs are equal in candidate vertices.")
 
 
