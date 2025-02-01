@@ -6,9 +6,9 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-EDGES_PATH = os.getenv("EDGES_PATH")
-NODES_PATH = os.getenv("NODES_PATH")
-BEFORE_PLOT_PATH = os.getenv("BEFORE_PLOT_PATH")
+EDGES_PATH = os.getenv("RESULT_EDGES_PATH")
+NODES_PATH = os.getenv("RESULT_NODES_PATH")
+BEFORE_PLOT_PATH = os.getenv("AFTER_PLOT_PATH")
 
 # Read nodes and edges into DataFrames
 nodes_df = pd.read_csv(NODES_PATH)

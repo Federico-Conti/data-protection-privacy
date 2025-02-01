@@ -642,10 +642,8 @@ class Anonymization(Graph):
             candidates = [
                 node for node in self.G_prime.N 
                 if not node.Anonymized 
-                and node.node_id != candidate_vertex.node_id
-                and node.node_id != seed_vertex.node_id
-                and node.node_id not in [node.node_id for node in comp_v]
-                and node.node_id not in [node.node_id for node in comp_u]
+                and node.node_id != owning_vertex.node_id
+                and node.node_id not in [node.node_id for node in component]
             ]
             
             if candidates:
@@ -654,10 +652,8 @@ class Anonymization(Graph):
             else:
                 candidates = [
                     node for node in self.G_prime.N 
-                    if node.node_id not in [node.node_id for node in component]
-                    and node.node_id != seed_vertex.node_id
-                    and node.node_id not in [node.node_id for node in comp_v]
-                    and node.node_id not in [node.node_id for node in comp_u]
+                    if node.node_id != owning_vertex.node_id
+                    and node.node_id not in [node.node_id for node in component]
                 ]
                 if candidates:
                     candidates.sort(key=lambda n: (len(n.edges), self.compare_ncp(node_to_be_matched.label, n.label)))  
@@ -682,7 +678,7 @@ class Anonymization(Graph):
                 node for node in self.G_prime.N 
                 if not node.Anonymized 
                 and node.node_id != owning_vertex.node_id
-                and node.node_id not in [node.node_id for node in component_to_be_matched]
+                and node.node_id not in [node.node_id for node in component]
             ]
             if candidates:
                 candidates.sort(key=lambda n: (len(n.edges))) 
@@ -691,7 +687,7 @@ class Anonymization(Graph):
                 candidates = [
                     node for node in self.G_prime.N 
                     if node.node_id != owning_vertex.node_id
-                    and node.node_id not in [node.node_id for node in component_to_be_matched]
+                    and node.node_id not in [node.node_id for node in component]
                 ]
                 if candidates:
                     candidates.sort(key=lambda n: (len(n.edges)))  

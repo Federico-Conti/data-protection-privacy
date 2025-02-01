@@ -9,6 +9,8 @@ load_dotenv()
 
 EDGES_PATH = os.getenv("EDGES_PATH")
 NODES_PATH = os.getenv("NODES_PATH")
+RESULT_EDGES_PATH = os.getenv("RESULT_EDGES_PATH")
+RESULT_NODES_PATH = os.getenv("RESULT_NODES_PATH")
 
 def main():
 
@@ -114,24 +116,36 @@ def main():
     
     print("\n\n")
     
-    # # Print the NCC (Normalized Clustering Coefficient) of each node in the anonymized graph
-    # # OUTPUT PHASE: Output the anonymized graph
-    # print("\n\n")
-    # for group in anon.anonymized_groups:
-    #     print("Anonymized Group:")
-    #     for node in group:
-    #         print(node)
-    #         print(anon.G_prime.neighborhoods[node].NCC)
-    #     print("\n")
+    # Print the NCC (Normalized Clustering Coefficient) of each node in the anonymized graph
+    # OUTPUT PHASE: Output the anonymized graph
+    print("\n\n")
+    for group in anon.anonymized_groups:
+        print("Anonymized Group:")
+        for node in group:
+            print(node)
+            print(anon.G_prime.neighborhoods[node].NCC)
+        print("\n")
         
     # # WRITE PHASE: Save the anonymized graph to a CSV file
-    # with open('result.csv', mode='w', newline='') as file:
-    #     csv_writer = csv.writer(file)
-    #     csv_writer.writerow(['id_1', 'id_2', 'label'])
+    with open(RESULT_NODES_PATH, mode='w', newline='') as nodes_out:
+        csv_writer = csv.writer(nodes_out)
+        csv_writer.writerow(["ID", "Anonymized_Label"])  # Header
+        for node in anon.G_prime.N:
+            csv_writer.writerow([node.node_id, node.label])
+
+
+    # Write anonymized edges to CSV
+    with open(RESULT_EDGES_PATH, mode='w', newline='') as edges_out:
+        csv_writer = csv.writer(edges_out)
+        csv_writer.writerow(["ID_1", "ID_2"])  # Header
+        processed_edges = set()
         
-    #     for node in anon.G_prime.N:
-    #         for neighbor_id in node.edges:
-    #             csv_writer.writerow([node.node_id, neighbor_id, node.label])
- 
+        for node in anon.G_prime.N:
+            for neighbor in node.edges:
+                edge = tuple(sorted([node.node_id, neighbor]))  # Ensure unique edges
+                if edge not in processed_edges:
+                    csv_writer.writerow(edge)
+                    processed_edges.add(edge)
+
 if __name__ == "__main__":
     main()
