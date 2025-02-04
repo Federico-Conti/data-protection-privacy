@@ -129,7 +129,7 @@ def main():
     # # WRITE PHASE: Save the anonymized graph to a CSV file
     with open(RESULT_NODES_PATH, mode='w', newline='') as nodes_out:
         csv_writer = csv.writer(nodes_out)
-        csv_writer.writerow(["ID", "Anonymized_Label"])  # Header
+        csv_writer.writerow(["id", "label"])  # Header
         for node in anon.G_prime.N:
             csv_writer.writerow([node.node_id, node.label])
 
@@ -137,7 +137,7 @@ def main():
     # Write anonymized edges to CSV
     with open(RESULT_EDGES_PATH, mode='w', newline='') as edges_out:
         csv_writer = csv.writer(edges_out)
-        csv_writer.writerow(["ID_1", "ID_2"])  # Header
+        csv_writer.writerow(["id_1", "id_2"])  # Header
         processed_edges = set()
         
         for node in anon.G_prime.N:

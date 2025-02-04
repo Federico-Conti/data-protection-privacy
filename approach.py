@@ -169,7 +169,7 @@ class Anonymization(Graph):
             R.append(R_aux)
             
 
-        R.sort(key=lambda x: (len(x), [(edge[2], edge[3]) for edge in x])) #restituiamo la best DFS per ogni C 
+        R.sort(key=lambda x: (len(x), [(edge[2], edge[3],edge[0], edge[1]) for edge in x])) #restituiamo la best DFS per ogni C 
  
         return R[0] # the head is the first lessically correct
         
@@ -421,6 +421,7 @@ class Anonymization(Graph):
                         ):
                             matched_seed.add(i)
                             matched_candidate.add(j)
+                            print(f"Matched component {i + 1} in seed with component {j + 1} in candidate.")
                             break
 
                 # Step 2.2: Handle unmatched components
@@ -462,9 +463,11 @@ class Anonymization(Graph):
                     candidate_comp, candidate_dfs = best_candidate_match                       
                     self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
                     self.extract_neighborhoods()
+                    
                     neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
                     seed_neighborhood = neighborhoods[seed_vertex]
                     candidate_neighborhood = neighborhoods[candidate_vertex]
+                   
                     
             # Print all NCCs in a pretty way
             for vertex in candidate_vertices:
@@ -576,6 +579,7 @@ class Anonymization(Graph):
                 nextVertexinComponent_u = set(current_u.getEdgesInComponent(comp_u))
                 nextVertexinComponent_v = set(current_v.getEdgesInComponent(comp_v))
                 
+                # BACKTACKING --> if the component is not isomorphic we add the missing edges
                 if len(comp_u) < len(comp_v):
                     for neighbor_id_v in nextVertexinComponent_v:
                         if neighbor_id_v in visited_v:
@@ -617,6 +621,7 @@ class Anonymization(Graph):
                     else:
                         break
                     
+                # match the neighbors
                 for neighbor_id in reversed(list(neighbors_u)):
                     neighbor_node = self.G_prime.getNode(neighbor_id)
                     if neighbor_node and neighbor_id not in visited_u and all(neighbor_id != node.node_id for node in queue_u):
