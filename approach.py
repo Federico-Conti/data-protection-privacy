@@ -548,98 +548,106 @@ class Anonymization(Graph):
 
         def bfs_and_match(node_v, node_u, comp_v, comp_u):
             """
-            Perform BFS on both components to make them structurally similar.
-            Args:
-                node_v (Node): Starting node in component `comp_v`.
-                node_u (Node): Starting node in component `comp_u`.
-                comp_v (list[Node]): Component from neighborhood `v`.
-                comp_u (list[Node]): Component from neighborhood `u`.
+            Use adjacency matrices to enforce structural isomorphism between two components.
+            This function assumes:
+            - comp_v and comp_u are lists of Node objects representing two components.
+            - Each Node object supports:
+                    - getEdgesInComponent(component): returns a list (or set) of neighbor node IDs within the given component.
+                    - addEdge(other_node_id): adds an edge from this node to the node with ID other_node_id.
+                    - a property 'node_id' that uniquely identifies the node.
+                    - a property 'label' that may be generalized using self.get_best_generalization_label(node1, node2)
+            - Helper functions addVertexToEmptyComponent (and/or addVertexToComponent) are available
+                to add new vertices when the components differ in size.
+            
+            The method works as follows:
+            1. If the two components do not have the same number of nodes, add vertices to the smaller one.
+            2. Sort each component’s nodes (using a key based on label and degree) so that we have a fixed pairing.
+            3. For each corresponding pair, enforce that the labels match.
+            4. Build the adjacency matrix for each component (using the same ordering).
+            5. For each pair of nodes (i,j), if one component has an edge that the other is missing, add the missing edge.
+            6. Finally, verify that the two matrices (and hence the structures) are identical.
             """
+            # === STEP 0: Balance the components (if needed) so they have the same number of nodes.
+            # (Assumes addVertexToEmptyComponent(component, component_to_match, owning_vertex)
+            #  is available in the enclosing scope.)
+            while len(comp_v) < len(comp_u):
+                addVertexToEmptyComponent(comp_v, comp_u, seed_vertex)  # seed_vertex belongs to comp_v's group
+            while len(comp_u) < len(comp_v):
+                addVertexToEmptyComponent(comp_u, comp_v, candidate_vertex)  # candidate_vertex for comp_u
+
+            n = len(comp_v)
+            if n != len(comp_u):
+                raise ValueError("Failed to balance components to the same size.")
+
+            # === STEP 1: Sort nodes to define a fixed correspondence.
+            # Here we sort by (label, degree_in_component) to provide a natural matching.
+            def sort_key_v(node):
+                return (node.label, len(node.getEdgesInComponent(comp_v)))
+            def sort_key_u(node):
+                return (node.label, len(node.getEdgesInComponent(comp_u)))
             
-            queue_u = [node_u]
-            queue_v = [node_v]
-            visited_u = set()
-            visited_v = set()
+            sorted_v = sorted(comp_v, key=sort_key_v)
+            sorted_u = sorted(comp_u, key=sort_key_u)
             
-            nodes_mapping = {}
+            # === STEP 2: Enforce label matching for corresponding nodes.
+            for i in range(n):
+                if sorted_v[i].label != sorted_u[i].label:
+                    common_label = self.get_best_generalization_label(sorted_v[i], sorted_u[i])
+                    sorted_v[i].label = common_label
+                    sorted_u[i].label = common_label
 
-            while len(queue_u)==len(queue_v) and len(queue_u) > 0:
-                current_u = queue_u.pop(0)
-                current_v = queue_v.pop(0)
-                
-                
-                # Mark nodes as visited
-                visited_u.add(current_u.node_id)
-                visited_v.add(current_v.node_id)
-                
-                # Initialize the set if it doesn't exist and map nodes with counter mapping
-                nodes_mapping[current_u.node_id] = current_v.node_id
-        
-                
-                nextVertexinComponent_u = set(current_u.getEdgesInComponent(comp_u))
-                nextVertexinComponent_v = set(current_v.getEdgesInComponent(comp_v))
-                
-                # BACKTACKING --> if the component is not isomorphic we add the missing edges
-                if len(comp_u) < len(comp_v):
-                    for neighbor_id_v in nextVertexinComponent_v:
-                        if neighbor_id_v in visited_v:
-                            key = next((k for k, v in nodes_mapping.items() if v == neighbor_id_v), None)
-                            if key not in current_u.edges:
-                                current_u.addEdge(key)
-                                self.G_prime.getNode(key).addEdge(current_u.node_id)
-                        
+            # === STEP 3: Build index maps and the adjacency matrices.
+            # Create maps: node_id -> index (according to the sorted order)
+            idx_map_v = {sorted_v[i].node_id: i for i in range(n)}
+            idx_map_u = {sorted_u[i].node_id: i for i in range(n)}
+            
+            # Initialize n x n matrices with zeros.
+            A = [[0] * n for _ in range(n)]  # for comp_v
+            B = [[0] * n for _ in range(n)]  # for comp_u
+            
+            # Fill matrix A: for each node in sorted_v, mark an edge if the neighbor is in comp_v.
+            for i in range(n):
+                node = sorted_v[i]
+                for neighbor_id in node.getEdgesInComponent(comp_v):
+                    if neighbor_id in idx_map_v:  # neighbor belongs to comp_v
+                        j = idx_map_v[neighbor_id]
+                        A[i][j] = 1
+                        A[j][i] = 1  # assume undirected edges
+            # Similarly for matrix B:
+            for i in range(n):
+                node = sorted_u[i]
+                for neighbor_id in node.getEdgesInComponent(comp_u):
+                    if neighbor_id in idx_map_u:
+                        j = idx_map_u[neighbor_id]
+                        B[i][j] = 1
+                        B[j][i] = 1
 
-                else:
-                    for neighbor_id_u in nextVertexinComponent_u:
-                        if neighbor_id_u in visited_u:
-                            key = nodes_mapping[neighbor_id_u]
-                            if key not in current_v.edges:
-                                current_v.addEdge(key)
-                                self.G_prime.getNode(key).addEdge(current_v.node_id)
-                                   
+            # === STEP 4: Compare the matrices and add missing edges.
+            for i in range(n):
+                for j in range(i + 1, n):
+                    if A[i][j] != B[i][j]:
+                        # If comp_v has an edge that comp_u is missing, add it to comp_u.
+                        if A[i][j] == 1 and B[i][j] == 0:
+                            node1 = sorted_u[i]
+                            node2 = sorted_u[j]
+                            if node2.node_id not in node1.edges:
+                                node1.addEdge(node2.node_id)
+                                node2.addEdge(node1.node_id)
+                            B[i][j] = 1
+                            B[j][i] = 1
+                        # If comp_u has an edge that comp_v is missing, add it to comp_v.
+                        elif B[i][j] == 1 and A[i][j] == 0:
+                            node1 = sorted_v[i]
+                            node2 = sorted_v[j]
+                            if node2.node_id not in node1.edges:
+                                node1.addEdge(node2.node_id)
+                                node2.addEdge(node1.node_id)
+                            A[i][j] = 1
+                            A[j][i] = 1
 
-                # Match labels
-                if current_u.label != current_v.label:
-                    current_u.label = current_v.label = self.get_best_generalization_label(current_u, current_v)
-
-                # Get neighbors in the component
-                neighbors_u = nextVertexinComponent_u - visited_u
-                neighbors_v = nextVertexinComponent_v - visited_v
-
-                # Balance the number of neighbors
-                while len(neighbors_u) < len(neighbors_v):
-                    new_neighbor = addVertexToComponent(current_u, current_v, comp_u, candidate_vertex)
-                    if new_neighbor:
-                        neighbors_u.add(new_neighbor)
-                    else:
-                        break
-
-                while len(neighbors_v) < len(neighbors_u):
-                    new_neighbor = addVertexToComponent(current_v, current_u, comp_v, seed_vertex)
-                    if new_neighbor:
-                        neighbors_v.add(new_neighbor)
-                    else:
-                        break
-                    
-                # match the neighbors
-                for neighbor_id in reversed(list(neighbors_u)):
-                    neighbor_node = self.G_prime.getNode(neighbor_id)
-                    if neighbor_node and neighbor_id not in visited_u and all(neighbor_id != node.node_id for node in queue_u):
-                        if neighbor_id in neighbors_v:
-                            queue_v.append(neighbor_node)
-                            queue_u.append(neighbor_node)
-                            neighbors_u.remove(neighbor_id)
-                            neighbors_v.remove(neighbor_id)
-                # Add neighbors to the queue for further traversal
-                for neighbor_id in reversed(list(neighbors_u)):
-                    neighbor_node = self.G_prime.getNode(neighbor_id)
-                    if neighbor_node and neighbor_id not in visited_u and all(neighbor_id != node.node_id for node in queue_u):
-                        queue_u.append(neighbor_node)
-
-                for neighbor_id in reversed(list(neighbors_v)):
-                    neighbor_node = self.G_prime.getNode(neighbor_id)
-                    if neighbor_node and neighbor_id not in visited_v and all(neighbor_id != node.node_id for node in queue_v):	
-                        queue_v.append(neighbor_node)
+            # === STEP 5: Final check: the two matrices should now be identical.
+            if A != B:
+                raise ValueError("Components are not isomorphic after applying adjacency matrix matching.")
                    
                 
                 
