@@ -92,16 +92,20 @@ class Anonymization(Graph):
                 dfs_result.append(
                     (mapping[parent_node.node_id], mapping[current_node.node_id], parent_node.label, current_node.label)
                 )
-
+                
+            neighbors = []
             for neighbor_id in current_node.getEdgesInComponent(component):
                 neighbor = self.G_prime.getNode(neighbor_id)
-                if neighbor_id not in visited:   
-                    stack.append((neighbor, current_node))
+                if neighbor_id not in visited:  
+                    neighbors.append(neighbor) 
                 else:
                     if not any((mapping[current_node.node_id] == tuple[0] and mapping[neighbor_id] == tuple[1]) or (mapping[neighbor_id] == tuple[0] and mapping[current_node.node_id] == tuple[1]) for tuple in dfs_result):
                         dfs_result.append(
                             (mapping[current_node.node_id], mapping[neighbor_id], current_node.label, neighbor.label)                  
-                        )
+                        )            
+            neighbors.sort(key=lambda n: (len(n.getEdgesInComponent(component)), n.label), reverse=True)
+            for neighbor in neighbors:
+                stack.append((neighbor, current_node))
         return dfs_result
 
     
@@ -592,7 +596,7 @@ class Anonymization(Graph):
             # === STEP 2: Enforce label matching for corresponding nodes.
             for i in range(n):
                 if sorted_v[i].label != sorted_u[i].label:
-                    common_label = self.get_best_generalization_label(sorted_v[i], sorted_u[i])
+                    common_label = self.get_best_generalization_label(sorted_v[i].label, sorted_u[i].label)
                     sorted_v[i].label = common_label
                     sorted_u[i].label = common_label
 
@@ -690,7 +694,8 @@ class Anonymization(Graph):
             candidates = [
                 node for node in self.G_prime.N 
                 if not node.Anonymized 
-                and node.node_id != owning_vertex.node_id
+                and node.node_id != seed_vertex.node_id
+                and node.node_id != candidate_vertex.node_id
                 and node.node_id not in [node.node_id for node in component]
             ]
             if candidates:
@@ -699,7 +704,8 @@ class Anonymization(Graph):
             else:
                 candidates = [
                     node for node in self.G_prime.N 
-                    if node.node_id != owning_vertex.node_id
+                    if node.node_id != seed_vertex.node_id
+                    and node.node_id != candidate_vertex.node_id
                     and node.node_id not in [node.node_id for node in component]
                 ]
                 if candidates:

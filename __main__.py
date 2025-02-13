@@ -69,6 +69,7 @@ def main():
     anon.extract_neighborhoods()
     
     VertexList = anon.G_prime.N
+    assert len(VertexList) > 2 * k - 1, f"Number of vertices in the graph must be at least 2k-1 = {2 * k - 1}"
     VertexList.sort(key=lambda node: (len(node.edges), sum(len(anon.G_prime.getNode(edge).edges) if anon.G_prime.getNode(edge) else 0 for edge in node.edges)), reverse=True)
     print("\n\nSorted Vertices:")
     for v in VertexList:
