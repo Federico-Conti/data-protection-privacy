@@ -653,7 +653,7 @@ class Anonymization(Graph):
                 node for node in self.G_prime.N 
                 if not node.Anonymized 
                 and node.node_id != owning_vertex.node_id
-                and node.node_id not in [node.node_id for node in component]
+                and node.node_id not in [node for node in owning_vertex.edges]
             ]
             
             if candidates:
@@ -663,7 +663,7 @@ class Anonymization(Graph):
                 candidates = [
                     node for node in self.G_prime.N 
                     if node.node_id != owning_vertex.node_id
-                    and node.node_id not in [node.node_id for node in component]
+                    and node.node_id not in [node for node in owning_vertex.edges]
                 ]
                 if candidates:
                     candidates.sort(key=lambda n: (len(n.edges), self.compare_ncp(node_to_be_matched.label, n.label)))  
