@@ -3,3 +3,4 @@ kagglehub
 matplotlib
 networkx
 python-dotenv
+Faker

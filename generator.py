@@ -54,7 +54,7 @@ def generate_graph_csv(num_vertices, node_file, edge_file):
     print(f"Edge data saved to: {edge_file}")
 
 # Parameters
-num_vertices = 30
+num_vertices = 10
 
 # Generate the graph CSV files
-generate_graph_csv(num_vertices, EDGES_PATH, NODES_PATH)
+generate_graph_csv(num_vertices, NODES_PATH, EDGES_PATH)

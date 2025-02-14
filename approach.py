@@ -596,7 +596,7 @@ class Anonymization(Graph):
             # === STEP 2: Enforce label matching for corresponding nodes.
             for i in range(n):
                 if sorted_v[i].label != sorted_u[i].label:
-                    common_label = self.get_best_generalization_label(sorted_v[i], sorted_u[i])
+                    common_label = self.get_best_generalization_label(sorted_v[i].label, sorted_u[i].label)
                     sorted_v[i].label = common_label
                     sorted_u[i].label = common_label
 
