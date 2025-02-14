@@ -397,90 +397,98 @@ class Anonymization(Graph):
         Args:
             candidate_vertices (list[Node]): List of nodes including SeedVertex and its CandidateSet.
         """
+        
+        
         # Step 1: Extract neighborhoods for the candidate vertices
         neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
 
         # Seed Vertex's neighborhood
-        seed_vertex, seed_neighborhood = next(iter(neighborhoods.items()))
+        seed_vertex, seed_neighborhood = list(neighborhoods.items())[0]
 
         # Iterate over Candidate Set's neighborhoods
-        for candidate_vertex, candidate_neighborhood in list(neighborhoods.items())[1:]:
-            print(f"\n\n** Start Anonymous {seed_vertex.node_id} and {candidate_vertex.node_id} **")
-            
-            unmatched_candidate = True
-            unmatched_seed = True
-            
-            while unmatched_seed or unmatched_candidate:
-            
-                matched_seed = set()
-                matched_candidate = set()
+        candidate_vertex, candidate_neighborhood = list(neighborhoods.items())[1]
+      
+      
+      
+        best_label = self.get_best_generalization_label(seed_vertex.label, candidate_vertex.label)
+        seed_vertex.label = best_label
+        candidate_vertex.label = best_label
+        
+        
+        unmatched_candidate = True
+        unmatched_seed = True
+        
+        while unmatched_seed or unmatched_candidate:
+        
+            matched_seed = set()
+            matched_candidate = set()
 
-                # Step 2.1: Perfectly match components
-                for i, (seed_comp, seed_dfs) in enumerate(zip(seed_neighborhood.components, seed_neighborhood.NCC)):
-                    for j, (candidate_comp, candidate_dfs) in enumerate(zip(candidate_neighborhood.components, candidate_neighborhood.NCC)):
-                        if j in matched_candidate:
-                            continue
-                        if len(seed_dfs) == len(candidate_dfs) and len(seed_comp) == len(candidate_comp) and all(
-                            edge_s == edge_c for edge_s, edge_c in zip(seed_dfs, candidate_dfs)
-                        ):
-                            matched_seed.add(i)
-                            matched_candidate.add(j)
-                            print(f"Matched component {i + 1} in seed with component {j + 1} in candidate.")
-                            break
+            # Step 2.1: Perfectly match components
+            for i, (seed_comp, seed_dfs) in enumerate(zip(seed_neighborhood.components, seed_neighborhood.NCC)):
+                for j, (candidate_comp, candidate_dfs) in enumerate(zip(candidate_neighborhood.components, candidate_neighborhood.NCC)):
+                    if j in matched_candidate:
+                        continue
+                    if len(seed_dfs) == len(candidate_dfs) and len(seed_comp) == len(candidate_comp) and all(
+                        edge_s == edge_c for edge_s, edge_c in zip(seed_dfs, candidate_dfs)
+                    ):
+                        matched_seed.add(i)
+                        matched_candidate.add(j)
+                        print(f"Matched component {i + 1} in seed with component {j + 1} in candidate.")
+                        break
 
-                # Step 2.2: Handle unmatched components
-                unmatched_seed = [
-                    (seed_neighborhood.components[i], seed_neighborhood.NCC[i])
-                    for i in range(len(seed_neighborhood.NCC)) if i not in matched_seed
-                ]
-                unmatched_candidate = [
-                    (candidate_neighborhood.components[j], candidate_neighborhood.NCC[j])
-                    for j in range(len(candidate_neighborhood.NCC)) if j not in matched_candidate
-                ]
+            # Step 2.2: Handle unmatched components
+            unmatched_seed = [
+                (seed_neighborhood.components[i], seed_neighborhood.NCC[i])
+                for i in range(len(seed_neighborhood.NCC)) if i not in matched_seed
+            ]
+            unmatched_candidate = [
+                (candidate_neighborhood.components[j], candidate_neighborhood.NCC[j])
+                for j in range(len(candidate_neighborhood.NCC)) if j not in matched_candidate
+            ]
+            
+            if not unmatched_seed and not unmatched_candidate:
+                break
+
+            if not unmatched_seed:
+                for component in unmatched_candidate:
+                    unmatched_seed.append(([],[]))
+        
+            if not unmatched_candidate:
+                for component in unmatched_seed:
+                    unmatched_candidate.append(([],[]))
+            
+            best_candidate_match = None
+            best_seed_match = None        
+            
+            for seed_comp, seed_dfs in unmatched_seed:
+                best_match_cost = float('inf')
+
+                for candidate_comp, candidate_dfs in unmatched_candidate:
+                    match_cost = self.cost_aux(seed_neighborhood, seed_comp, seed_dfs, candidate_neighborhood, candidate_comp, candidate_dfs, self.alpha, self.beta, self.gamma)
+                    if match_cost < best_match_cost:
+                        best_match_cost = match_cost
+                        best_candidate_match = (candidate_comp, candidate_dfs)
+                        best_seed_match = (seed_comp, seed_dfs)
+
+            if best_seed_match and best_candidate_match:	
+                seed_comp, seed_dfs = best_seed_match
+                candidate_comp, candidate_dfs = best_candidate_match                       
+                self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
+                self.extract_neighborhoods()
                 
-                if not unmatched_seed and not unmatched_candidate:
-                    break
-
-                if not unmatched_seed:
-                    for component in unmatched_candidate:
-                        unmatched_seed.append(([],[]))
-            
-                if not unmatched_candidate:
-                    for component in unmatched_seed:
-                        unmatched_candidate.append(([],[]))
+                neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
+                seed_neighborhood = neighborhoods[seed_vertex]
+                candidate_neighborhood = neighborhoods[candidate_vertex]
                 
-                best_candidate_match = None
-                best_seed_match = None        
                 
-                for seed_comp, seed_dfs in unmatched_seed:
-                    best_match_cost = float('inf')
-
-                    for candidate_comp, candidate_dfs in unmatched_candidate:
-                        match_cost = self.cost_aux(seed_neighborhood, seed_comp, seed_dfs, candidate_neighborhood, candidate_comp, candidate_dfs, self.alpha, self.beta, self.gamma)
-                        if match_cost < best_match_cost:
-                            best_match_cost = match_cost
-                            best_candidate_match = (candidate_comp, candidate_dfs)
-                            best_seed_match = (seed_comp, seed_dfs)
-
-                if best_seed_match and best_candidate_match:	
-                    seed_comp, seed_dfs = best_seed_match
-                    candidate_comp, candidate_dfs = best_candidate_match                       
-                    self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
-                    self.extract_neighborhoods()
-                    
-                    neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
-                    seed_neighborhood = neighborhoods[seed_vertex]
-                    candidate_neighborhood = neighborhoods[candidate_vertex]
-                   
-                    
-            # Print all NCCs in a pretty way
-            for vertex in candidate_vertices:
-                neighborhood = self.G_prime.neighborhoods[vertex]
-                print(f"\nNeighborhood for vertex {vertex.node_id}:")
-                for i, ncc in enumerate(neighborhood.NCC):
-                    print(f"  Component {i + 1}:")
-                    for edge in ncc:
-                        print(f"    {edge}")
+        # Print all NCCs in a pretty way
+        for vertex in candidate_vertices:
+            neighborhood = self.G_prime.neighborhoods[vertex]
+            print(f"\nNeighborhood for vertex {vertex.node_id}:")
+            for i, ncc in enumerate(neighborhood.NCC):
+                print(f"  Component {i + 1}:")
+                for edge in ncc:
+                    print(f"    {edge}")
         # Check if all NCCs are equal in candidate vertices
         first_ncc = None
         for vertex in candidate_vertices:

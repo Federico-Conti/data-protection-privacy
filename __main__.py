@@ -15,7 +15,7 @@ RESULT_NODES_PATH = os.getenv("RESULT_NODES_PATH")
 def main():
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--k', type=int, default=2, help='Example k value')
+    parser.add_argument('--k', type=int, default=3, help='Example k value')
     parser.add_argument('--alpha', type=float, default=1.0, help='Weight for alpha in cost function')
     parser.add_argument('--beta', type=float, default=1.0, help='Weight for beta in cost function')
     parser.add_argument('--gamma', type=float, default=1.0, help='Weight for gamma in cost function')
@@ -102,9 +102,12 @@ def main():
         
         # Anonymize Neighbor(uj) and {Neighbor(SeedVertex), Neighbor(u1), ..., Neighbor(uj-1)}
         for j in range(1, len(CandidateSet)):
-            candidate_vertices = [CandidateSet[j]] + [SeedVertex] + CandidateSet[:j]
-            anon.anonymize_neighborhoods(candidate_vertices)
-            for node in candidate_vertices:
+            candidate_vertices = [SeedVertex] + CandidateSet[:j]
+            
+            for node in candidate_vertices:  
+              anon.anonymize_neighborhoods([CandidateSet[j]]+[node])
+            
+            for node in candidate_vertices+[CandidateSet[j]]:
                 node.Anonymized = True
                     # Mark all candidate vertices as anonymized
         anon.anonymized_groups.append([SeedVertex] + CandidateSet)
