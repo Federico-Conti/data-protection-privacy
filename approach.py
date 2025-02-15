@@ -1,3 +1,5 @@
+import numpy as np
+from scipy.optimize import linear_sum_assignment
 from graph import Graph, Node, Neighborhood
 from functools import cmp_to_key
 import random
@@ -501,161 +503,116 @@ class Anonymization(Graph):
             comp_u (list[Node]): Component from neighborhood `u` (list of Node objects).
         """
 
-        def find_starting_nodes():
-            """
-            Find a pair of starting nodes to initiate BFS.
-            Tries to match nodes with the same degree and label.
-            """
-            candidates = []
-            for node_v in comp_v:
-                for node_u in comp_u:
-                    
-                    if node_v == node_u:
-                        return node_v, node_u
-                    
-                    if node_v.label == node_u.label and len(node_v.getEdgesInComponent(comp_v)) == len(node_u.getEdgesInComponent(comp_u)):
-                        candidates.append((node_v, node_u))
-
-            # If multiple candidates, choose the pair with the highest degree
-            if candidates:
-                return max(candidates, key=lambda pair: len(pair[0].edges))
-
-            # If no exact match, relax the matching criteria
-            best_pair = None
-            best_cost = float('inf')
-            
-            max_degree_v = max((len(node.getEdgesInComponent(comp_v)) for node in comp_v), default=0)
-            max_degree_u = max((len(node.getEdgesInComponent(comp_u)) for node in comp_u), default=0)
-            max_degree = max_degree_v + max_degree_u
-            
-            for node_v in comp_v:
-                for node_u in comp_u:
-                    # Normalize degree difference
-                    degree_diff = abs(len(node_v.getEdgesInComponent(comp_v)) - len(node_u.getEdgesInComponent(comp_u)))
-
-                    # Normalize NCP cost (if needed)
-                    ncp_cost = self.compare_ncp(node_v.label, node_u.label)
-
-
-                    # Calculate total cost
-                    total_cost = degree_diff + ncp_cost
-                    if total_cost < best_cost:
-                        best_cost = total_cost
-                        best_pair = (node_v, node_u)
-
-            return best_pair
-
         def bfs_and_match(comp_v, comp_u):
-            """"
-           Use adjacency matrices to enforce structural isomorphism between two components.
-            This function assumes:
-            - comp_v and comp_u are lists of Node objects representing two components.
-            - Each Node object supports:
-                    - getEdgesInComponent(component): returns a list (or set) of neighbor node IDs within the given component.
-                    - addEdge(other_node_id): adds an edge from this node to the node with ID other_node_id.
-                    - a property 'node_id' that uniquely identifies the node.
-                    - a property 'label' that may be generalized using self.get_best_generalization_label(node1, node2)
-            - Helper functions addVertexToComponent (and/or addVertexToComponent) are available
-                to add new vertices when the components differ in size.
-            
-            The method works as follows:
-            1. If the two components do not have the same number of nodes, add vertices to the smaller one.
-            2. Sort each component’s nodes (using a key based on label and degree) so that we have a fixed pairing.
-            3. For each corresponding pair, enforce that the labels match.
-            4. Build the adjacency matrix for each component (using the same ordering).
-            5. For each pair of nodes (i,j), if one component has an edge that the other is missing, add the missing edge.
-            6. Finally, verify that the two matrices (and hence the structures) are identical.
             """
-            # === STEP 0: Balance the components (if needed) so they have the same number of nodes.
-            # (Assumes addVertexToComponent(component, component_to_match, owning_vertex)
-            #  is available in the enclosing scope.)
+            Revised version of bfs_and_match that minimizes extra edge additions by
+            computing an optimal node mapping between comp_v and comp_u using the Hungarian algorithm.
+            
+            The cost for matching two nodes is based on:
+            - The absolute difference in their degrees (within the respective components).
+            - A penalty if their labels do not match.
+            
+            After obtaining the optimal mapping, we reorder comp_u accordingly, build the 
+            corresponding adjacency matrices, and only add missing edges where needed.
+            """
+            # --- STEP 0: Balance the components.
             while len(comp_v) < len(comp_u):
-                addVertexToComponent(comp_v, comp_u, seed_vertex)  # seed_vertex belongs to comp_v's group
+                addVertexToComponent(comp_v, seed_vertex)  # seed_vertex belongs to comp_v's group
             while len(comp_u) < len(comp_v):
-                addVertexToComponent(comp_u, comp_v, candidate_vertex)  # candidate_vertex for comp_u
+                addVertexToComponent(comp_u, candidate_vertex)  # candidate_vertex for comp_u
 
             n = len(comp_v)
             if n != len(comp_u):
                 raise ValueError("Failed to balance components to the same size.")
 
-            # === STEP 1: Sort nodes to define a fixed correspondence.
-            # Here we sort by (label, degree_in_component) to provide a natural matching.
-            def sort_key_v(node):
-                return (node.label, len(node.getEdgesInComponent(comp_v)))
-            def sort_key_u(node):
-                return (node.label, len(node.getEdgesInComponent(comp_u)))
+            # --- STEP 1: Establish a “reference” ordering for comp_v.
+            # We sort comp_v by degree and label.
+            sorted_v = sorted(comp_v, key=lambda node: (len(node.getEdgesInComponent(comp_v)), node.label))
             
-            sorted_v = sorted(comp_v, key=sort_key_v)
-            sorted_u = sorted(comp_u, key=sort_key_u)
-            
-            # === STEP 2: Enforce label matching for corresponding nodes.
-            for i in range(n):
-                if sorted_v[i].label != sorted_u[i].label:
-                    common_label = self.get_best_generalization_label(sorted_v[i].label, sorted_u[i].label)
-                    sorted_v[i].label = common_label
-                    sorted_u[i].label = common_label
-
-            # === STEP 3: Build index maps and the adjacency matrices.
-            # Create maps: node_id -> index (according to the sorted order)
+            # Build adjacency matrix A for comp_v.
             idx_map_v = {sorted_v[i].node_id: i for i in range(n)}
-            idx_map_u = {sorted_u[i].node_id: i for i in range(n)}
-            
-            # Initialize n x n matrices with zeros.
-            A = [[0] * n for _ in range(n)]  # for comp_v
-            B = [[0] * n for _ in range(n)]  # for comp_u
-            
-            # Fill matrix A: for each node in sorted_v, mark an edge if the neighbor is in comp_v.
-            for i in range(n):
-                node = sorted_v[i]
+            A = np.zeros((n, n), dtype=int)
+            for i, node in enumerate(sorted_v):
                 for neighbor_id in node.getEdgesInComponent(comp_v):
-                    if neighbor_id in idx_map_v:  # neighbor belongs to comp_v
+                    if neighbor_id in idx_map_v:
                         j = idx_map_v[neighbor_id]
-                        A[i][j] = 1
-                        A[j][i] = 1  # assume undirected edges
-            # Similarly for matrix B:
-            for i in range(n):
-                node = sorted_u[i]
+                        A[i, j] = 1
+                        A[j, i] = 1  # undirected graph
+
+            # --- STEP 2: Build a cost matrix for matching nodes in comp_v to nodes in comp_u.
+            # The cost is the difference in degree plus a penalty if labels differ.
+            cost_matrix = np.zeros((n, n))
+            for i, node_v in enumerate(sorted_v):
+                deg_v = len(node_v.getEdgesInComponent(comp_v))
+                for j, node_u in enumerate(comp_u):
+                    deg_u = len(node_u.getEdgesInComponent(comp_u))
+                    cost = abs(deg_v - deg_u)
+                    if node_v.label != node_u.label:
+                        cost += 1  # label mismatch penalty
+                    cost_matrix[i, j] = cost
+
+            # --- STEP 3: Compute the optimal assignment using the Hungarian algorithm.
+            row_ind, col_ind = linear_sum_assignment(cost_matrix)
+            # Build the best ordering for comp_u: best_order[i] is the node from comp_u that best matches sorted_v[i]
+            best_order = [None] * n
+            for i, j in zip(row_ind, col_ind):
+                best_order[i] = comp_u[j]
+
+            # --- STEP 4: Build adjacency matrix B for the reordered comp_u.
+            idx_map_u = {best_order[i].node_id: i for i in range(n)}
+            B = np.zeros((n, n), dtype=int)
+            for i, node in enumerate(best_order):
                 for neighbor_id in node.getEdgesInComponent(comp_u):
                     if neighbor_id in idx_map_u:
                         j = idx_map_u[neighbor_id]
-                        B[i][j] = 1
-                        B[j][i] = 1
+                        B[i, j] = 1
+                        B[j, i] = 1
 
-            # === STEP 4: Compare the matrices and add missing edges.
+            # --- STEP 5: Enforce label matching between corresponding nodes.
+            for i in range(n):
+                if sorted_v[i].label != best_order[i].label:
+                    common_label = self.get_best_generalization_label(sorted_v[i].label, best_order[i].label)
+                    sorted_v[i].label = common_label
+                    best_order[i].label = common_label
+
+            # --- STEP 6: Add missing edges only where one component has an edge and the other does not.
+            # This loop fixes the mismatches between A and B.
             for i in range(n):
                 for j in range(i + 1, n):
-                    if A[i][j] != B[i][j]:
-                        # If comp_v has an edge that comp_u is missing, add it to comp_u.
-                        if A[i][j] == 1 and B[i][j] == 0:
-                            node1 = sorted_u[i]
-                            node2 = sorted_u[j]
+                    if A[i, j] != B[i, j]:
+                        # If comp_v has the edge but comp_u is missing it, add the edge to comp_u.
+                        if A[i, j] == 1 and B[i, j] == 0:
+                            node1 = best_order[i]
+                            node2 = best_order[j]
                             if node2.node_id not in node1.edges:
                                 node1.addEdge(node2.node_id)
                                 node2.addEdge(node1.node_id)
-                            B[i][j] = 1
-                            B[j][i] = 1
-                        # If comp_u has an edge that comp_v is missing, add it to comp_v.
-                        elif B[i][j] == 1 and A[i][j] == 0:
+                            B[i, j] = 1
+                            B[j, i] = 1
+                        # If comp_u has the edge but comp_v is missing it, add the edge to comp_v.
+                        elif B[i, j] == 1 and A[i, j] == 0:
                             node1 = sorted_v[i]
                             node2 = sorted_v[j]
                             if node2.node_id not in node1.edges:
                                 node1.addEdge(node2.node_id)
                                 node2.addEdge(node1.node_id)
-                            A[i][j] = 1
-                            A[j][i] = 1
+                            A[i, j] = 1
+                            A[j, i] = 1
 
-            # === STEP 5: Final check: the two matrices should now be identical.
-            if A != B:
-                raise ValueError("Components are not isomorphic after applying adjacency matrix matching.")
+            # --- STEP 7: Final verification.
+            if not np.array_equal(A, B):
+                raise ValueError("Components are not isomorphic after optimized matching.")
+
+
 
        
-        def addVertexToComponent(component, component_to_be_matched ,owning_vertex):
+        def addVertexToComponent(component,owning_vertex):
             candidates = [
                 node for node in self.G_prime.N 
                 if not node.Anonymized 
                 and node.node_id != seed_vertex.node_id
                 and node.node_id != candidate_vertex.node_id
-                and node.node_id not in [node for node in owning_vertex.edges]
+                and node.node_id not in [node.node_id for node in component]
             ]
             if candidates:
                 candidates.sort(key=lambda n: (len(n.edges))) 
@@ -665,7 +622,7 @@ class Anonymization(Graph):
                     node for node in self.G_prime.N 
                     if node.node_id != seed_vertex.node_id
                     and node.node_id != candidate_vertex.node_id
-                    and node.node_id not in [node for node in owning_vertex.edges]
+                    and node.node_id not in [node.node_id for node in component]
                 ]
                 if candidates:
                     candidates.sort(key=lambda n: (len(n.edges)))  
