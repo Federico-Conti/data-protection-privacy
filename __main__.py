@@ -5,6 +5,7 @@ import argparse
 import os
 
 from dotenv import load_dotenv
+import copy
 load_dotenv()
 
 EDGES_PATH = os.getenv("EDGES_PATH")
@@ -63,8 +64,33 @@ def main():
             
             node1.addEdge(id_2)
             node2.addEdge(id_1)
+            
+            
+    def analyze_anonymization(original_graph, anonymized_graph):
+        original_edges = set()
+        for node in original_graph.N:
+            for neighbor in node.edges:
+                original_edges.add(tuple(sorted([node.node_id, neighbor])))
+        
+        anonymized_edges = set()
+        for node in anonymized_graph.N:
+            for neighbor in node.edges:
+                anonymized_edges.add(tuple(sorted([node.node_id, neighbor])))
+        
+        edges_added = len(anonymized_edges) - len(original_edges)
+        
+        original_labels = {node.node_id: node.label for node in original_graph.N}
+        anonymized_labels = {node.node_id: node.label for node in anonymized_graph.N}
+        
+        labels_anonymized = sum(1 for node_id in anonymized_labels if anonymized_labels[node_id] != original_labels.get(node_id, None))
+        
+        print(f"\nNumber of edges added: {edges_added}")
+        print(f"Number of labels anonymized: {labels_anonymized}")
+        
     
 # \                             ** NEIGHBORHOODS EXTRACTION AND CODING **
+    #full copy without a pointer to the original graph
+    original_graph = copy.deepcopy(graph)
     anon = Anonymization(graph,k,alpha, beta, gamma)
     anon.extract_neighborhoods()
     
@@ -110,6 +136,8 @@ def main():
                 
                 for node in candidate_vertices:  
                     anon.anonymize_neighborhoods([CandidateSet[j]]+[node])
+                
+                    analyze_anonymization(original_graph, anon.G_prime)
                     
                 # Check if all NCCs are equal
                 ncc_values = [tuple(map(tuple, anon.G_prime.neighborhoods[node].NCC)) for node in candidate_vertices + [CandidateSet[j]]]
@@ -124,8 +152,11 @@ def main():
         
         # Update VertexList
         VertexListCopy = [v for v in anon.G_prime.N if v.Anonymized == False]
+        
+        
     
-    print("\n\n")
+    # Analyze the anonymization
+   
     
     # Print the NCC (Normalized Clustering Coefficient) of each node in the anonymized graph
     # OUTPUT PHASE: Output the anonymized graph
@@ -133,8 +164,9 @@ def main():
     for group in anon.anonymized_groups:
         print("Anonymized Group:")
         for node in group:
-            print(node)
-        print("\n")
+            print(node.node_id, node.label, len(node.edges))
+        print("\n") 
+        
         
     # # WRITE PHASE: Save the anonymized graph to a CSV file
     with open(RESULT_NODES_PATH, mode='w', newline='') as nodes_out:
