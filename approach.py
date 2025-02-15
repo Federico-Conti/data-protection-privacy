@@ -489,19 +489,6 @@ class Anonymization(Graph):
                 print(f"  Component {i + 1}:")
                 for edge in ncc:
                     print(f"    {edge}")
-        # Check if all NCCs are equal in candidate vertices
-        first_ncc = None
-        for vertex in candidate_vertices:
-            neighborhood = self.G_prime.neighborhoods[vertex]
-            if first_ncc is None:
-                first_ncc = neighborhood.NCC
-            else:
-                for comp1, comp2 in zip(first_ncc, neighborhood.NCC):
-                    if len(comp1) != len(comp2):
-                        self.anonymize_neighborhoods(candidate_vertices)
-                    for edge1, edge2 in zip(comp1, comp2):
-                        if edge1 != edge2:
-                            self.anonymize_neighborhoods(candidate_vertices)
 
 
    
@@ -558,7 +545,7 @@ class Anonymization(Graph):
 
             return best_pair
 
-        def bfs_and_match(node_v, node_u, comp_v, comp_u):
+        def bfs_and_match(comp_v, comp_u):
             """"
            Use adjacency matrices to enforce structural isomorphism between two components.
             This function assumes:
@@ -568,7 +555,7 @@ class Anonymization(Graph):
                     - addEdge(other_node_id): adds an edge from this node to the node with ID other_node_id.
                     - a property 'node_id' that uniquely identifies the node.
                     - a property 'label' that may be generalized using self.get_best_generalization_label(node1, node2)
-            - Helper functions addVertexToEmptyComponent (and/or addVertexToComponent) are available
+            - Helper functions addVertexToComponent (and/or addVertexToComponent) are available
                 to add new vertices when the components differ in size.
             
             The method works as follows:
@@ -580,12 +567,12 @@ class Anonymization(Graph):
             6. Finally, verify that the two matrices (and hence the structures) are identical.
             """
             # === STEP 0: Balance the components (if needed) so they have the same number of nodes.
-            # (Assumes addVertexToEmptyComponent(component, component_to_match, owning_vertex)
+            # (Assumes addVertexToComponent(component, component_to_match, owning_vertex)
             #  is available in the enclosing scope.)
             while len(comp_v) < len(comp_u):
-                addVertexToEmptyComponent(comp_v, comp_u, seed_vertex)  # seed_vertex belongs to comp_v's group
+                addVertexToComponent(comp_v, comp_u, seed_vertex)  # seed_vertex belongs to comp_v's group
             while len(comp_u) < len(comp_v):
-                addVertexToEmptyComponent(comp_u, comp_v, candidate_vertex)  # candidate_vertex for comp_u
+                addVertexToComponent(comp_u, comp_v, candidate_vertex)  # candidate_vertex for comp_u
 
             n = len(comp_v)
             if n != len(comp_u):
@@ -661,46 +648,8 @@ class Anonymization(Graph):
             if A != B:
                 raise ValueError("Components are not isomorphic after applying adjacency matrix matching.")
 
-
-                   
-                
-                
-        def addVertexToComponent(cur_component_vertex, node_to_be_matched ,component, owning_vertex):
-            candidates = [
-                node for node in self.G_prime.N 
-                if not node.Anonymized 
-                and node.node_id != owning_vertex.node_id
-                and node.node_id not in [node for node in owning_vertex.edges]
-            ]
-            
-            if candidates:
-                candidates.sort(key=lambda n: (len(n.edges), self.compare_ncp(node_to_be_matched.label, n.label))) 
-                selected = candidates[0]
-            else:
-                candidates = [
-                    node for node in self.G_prime.N 
-                    if node.node_id != owning_vertex.node_id
-                    and node.node_id not in [node for node in owning_vertex.edges]
-                ]
-                if candidates:
-                    candidates.sort(key=lambda n: (len(n.edges), self.compare_ncp(node_to_be_matched.label, n.label)))  
-                    selected = candidates[0]
-                    anonymized_group = next((group for group in self.anonymized_groups if selected in group), None)
-                    if anonymized_group:
-                        for member in anonymized_group:
-                            member.Anonymized = False
-                        self.anonymized_groups.remove(anonymized_group)
-                else:
-                    raise ValueError("No more candidates available for anonymization.") 
-            component.append(selected)
-            selected.addEdge(cur_component_vertex.node_id)
-            cur_component_vertex.addEdge(selected.node_id)
-            selected.addEdge(owning_vertex.node_id)
-            owning_vertex.addEdge(selected.node_id)
-            
-            return selected.node_id
-        
-        def addVertexToEmptyComponent(component, component_to_be_matched ,owning_vertex):
+       
+        def addVertexToComponent(component, component_to_be_matched ,owning_vertex):
             candidates = [
                 node for node in self.G_prime.N 
                 if not node.Anonymized 
@@ -731,18 +680,9 @@ class Anonymization(Graph):
             component.append(selected)
             selected.addEdge(owning_vertex.node_id)
             owning_vertex.addEdge(selected.node_id)
-            
-        if not comp_v:
-            addVertexToEmptyComponent(comp_v, comp_u ,seed_vertex)
-        if not comp_u:
-            addVertexToEmptyComponent(comp_u, comp_v , candidate_vertex)   
-            
-        # Step 1: Find starting nodes for BFS
-        start_v, start_u = find_starting_nodes()
         
-
         # Step 2: Perform BFS and modify components
-        bfs_and_match(start_v, start_u, comp_v, comp_u) #
+        bfs_and_match(comp_v, comp_u) #
 
     
 

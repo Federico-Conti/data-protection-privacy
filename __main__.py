@@ -15,7 +15,7 @@ RESULT_NODES_PATH = os.getenv("RESULT_NODES_PATH")
 def main():
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--k', type=int, default=3, help='Example k value')
+    parser.add_argument('--k', type=int, default=2, help='Example k value')
     parser.add_argument('--alpha', type=float, default=1.0, help='Weight for alpha in cost function')
     parser.add_argument('--beta', type=float, default=1.0, help='Weight for beta in cost function')
     parser.add_argument('--gamma', type=float, default=1.0, help='Weight for gamma in cost function')
@@ -102,11 +102,18 @@ def main():
         
         # Anonymize Neighbor(uj) and {Neighbor(SeedVertex), Neighbor(u1), ..., Neighbor(uj-1)}
         for j in range(1, len(CandidateSet)):
-            candidate_vertices = [SeedVertex] + CandidateSet[:j]
             
-            for node in candidate_vertices:  
-              anon.anonymize_neighborhoods([CandidateSet[j]]+[node])
+            ncc_values = tuple()
             
+            while len(set(ncc_values)) != 1:
+                candidate_vertices = [SeedVertex] + CandidateSet[:j]
+                
+                for node in candidate_vertices:  
+                    anon.anonymize_neighborhoods([CandidateSet[j]]+[node])
+                    
+                # Check if all NCCs are equal
+                ncc_values = [tuple(map(tuple, anon.G_prime.neighborhoods[node].NCC)) for node in candidate_vertices + [CandidateSet[j]]]
+        
             for node in candidate_vertices+[CandidateSet[j]]:
                 node.Anonymized = True
                     # Mark all candidate vertices as anonymized
@@ -127,7 +134,6 @@ def main():
         print("Anonymized Group:")
         for node in group:
             print(node)
-            print(anon.G_prime.neighborhoods[node].NCC)
         print("\n")
         
     # # WRITE PHASE: Save the anonymized graph to a CSV file
