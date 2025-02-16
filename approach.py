@@ -263,10 +263,6 @@ class Anonymization(Graph):
         neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
         seed_vertex, seed_neighborhood = list(neighborhoods.items())[0]
         candidate_vertex, candidate_neighborhood = list(neighborhoods.items())[1]
-      
-        best_label = self.get_best_generalization_label(seed_vertex.label, candidate_vertex.label)
-        seed_vertex.label = best_label
-        candidate_vertex.label = best_label
         
         unmatched_candidate = True
         unmatched_seed = True
@@ -329,14 +325,18 @@ class Anonymization(Graph):
                 seed_neighborhood = neighborhoods[seed_vertex]
                 candidate_neighborhood = neighborhoods[candidate_vertex]
                 
-        # Print all NCCs in a pretty way
-        for vertex in candidate_vertices:
-            neighborhood = self.G_prime.neighborhoods[vertex]
-            print(f"\nNeighborhood for vertex {vertex.node_id}:")
-            for i, ncc in enumerate(neighborhood.NCC):
-                print(f"  Component {i + 1}:")
-                for edge in ncc:
-                    print(f"    {edge}")
+        best_label = self.get_best_generalization_label(seed_vertex.label, candidate_vertex.label)
+        seed_vertex.label = best_label
+        candidate_vertex.label = best_label
+                
+        # # Print all NCCs in a pretty way
+        # for vertex in candidate_vertices:
+        #     neighborhood = self.G_prime.neighborhoods[vertex]
+        #     print(f"\nNeighborhood for vertex {vertex.node_id}:")
+        #     for i, ncc in enumerate(neighborhood.NCC):
+        #         print(f"  Component {i + 1}:")
+        #         for edge in ncc:
+        #             print(f"    {edge}")
                     
     def make_isomorphic(self, comp_v, comp_u, seed_vertex, candidate_vertex):
         """
@@ -421,16 +421,27 @@ class Anonymization(Graph):
                 raise ValueError("Components are not isomorphic after optimized matching.")
         
         def addVertexToComponent(component, owning_vertex):
-            candidates = [node for node in self.G_prime.N 
-                          if not node.Anonymized 
-                          and node.node_id != owning_vertex.node_id 
-                          and node.node_id not in owning_vertex.edges]
+            if component: 
+                candidates = [node for node in self.G_prime.N 
+                            if not node.Anonymized 
+                            and node.node_id != owning_vertex.node_id 
+                            and node.node_id not in [node.node_id for node in component]]
+            else:
+                candidates = [node for node in self.G_prime.N 
+                            if not node.Anonymized 
+                            and node.node_id != owning_vertex.node_id 
+                            and node.node_id not in owning_vertex.edges]
             if candidates:
                 selected = min(candidates, key=lambda n: len(n.edges))
             else:
-                candidates = [node for node in self.G_prime.N 
-                              if node.node_id != owning_vertex.node_id 
-                              and node.node_id not in owning_vertex.edges]
+                if component:
+                    candidates = [node for node in self.G_prime.N 
+                                if node.node_id != owning_vertex.node_id 
+                                and node.node_id not in [node.node_id for node in component]]
+                else:
+                    candidates = [node for node in self.G_prime.N 
+                                if node.node_id != owning_vertex.node_id    
+                                and node.node_id not in owning_vertex.edges]
                 if candidates:
                     selected = min(candidates, key=lambda n: len(n.edges))
                     anonymized_group = next((group for group in self.anonymized_groups if selected in group), None)

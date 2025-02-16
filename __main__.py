@@ -18,8 +18,8 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--k', type=int, default=2, help='Example k value')
     parser.add_argument('--alpha', type=float, default=1.0, help='Weight for alpha in cost function')
-    parser.add_argument('--beta', type=float, default=1.0, help='Weight for beta in cost function')
-    parser.add_argument('--gamma', type=float, default=1.0, help='Weight for gamma in cost function')
+    parser.add_argument('--beta', type=float, default=2.0, help='Weight for beta in cost function')
+    parser.add_argument('--gamma', type=float, default=3.0, help='Weight for gamma in cost function')
     parser.add_argument('--nodes_file_path', type=str, default=NODES_PATH, help='Path to the CSV file')
     parser.add_argument('--edges_file_path', type=str, default=EDGES_PATH, help='Path to the CSV file')
 
@@ -65,7 +65,6 @@ def main():
             node1.addEdge(id_2)
             node2.addEdge(id_1)
             
-            
     def analyze_anonymization(original_graph, anonymized_graph):
         original_edges = set()
         for node in original_graph.N:
@@ -85,8 +84,7 @@ def main():
         labels_anonymized = sum(1 for node_id in anonymized_labels if anonymized_labels[node_id] != original_labels.get(node_id, None))
         
         print(f"\nNumber of edges added: {edges_added}")
-        print(f"Number of labels anonymized: {labels_anonymized}")
-        
+        print(f"Number of labels anonymized: {labels_anonymized}\n")    
     
 # \                             ** NEIGHBORHOODS EXTRACTION AND CODING **
     #full copy without a pointer to the original graph
@@ -121,6 +119,7 @@ def main():
         
         # Anonymize the neighborhoods
         # Anonymize Neighbor(SeedVertex) and Neighbor(u1)
+        print(f"\nAnonymizing {SeedVertex.node_id} with {CandidateSet[0].node_id}\n")
         anon.anonymize_neighborhoods([SeedVertex] + [CandidateSet[0]])
         if len(CandidateSet) == 1:
             for node in [SeedVertex] + CandidateSet:
@@ -135,9 +134,8 @@ def main():
                 candidate_vertices = [SeedVertex] + CandidateSet[:j]
                 
                 for node in candidate_vertices:  
+                    print(f"\nAnonymizing {CandidateSet[j].node_id} with {node.node_id}\n")
                     anon.anonymize_neighborhoods([CandidateSet[j]]+[node])
-                
-                    analyze_anonymization(original_graph, anon.G_prime)
                     
                 # Check if all NCCs are equal
                 ncc_values = [tuple(map(tuple, anon.G_prime.neighborhoods[node].NCC)) for node in candidate_vertices + [CandidateSet[j]]]
@@ -188,6 +186,18 @@ def main():
                 if edge not in processed_edges:
                     csv_writer.writerow(edge)
                     processed_edges.add(edge)
-
+                    
+    # Analyze the anonymization	             
+    analyze_anonymization(original_graph, anon.G_prime)
+                    
 if __name__ == "__main__":
     main()
+        
+    import big_o
+    
+    def test_anonymization(n):
+        main()
+        
+    # Estimate the Big-O complexity 
+    best, others = big_o.big_o(test_anonymization, big_o.datagen.n_, n_repeats=5)
+    print(f"Estimated Big-O complexity: {best}")
