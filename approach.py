@@ -146,22 +146,9 @@ class Anonymization(Graph):
                                           edge[0], edge[1]) for edge in x]))
         return R[0]  # Return the lexicographically smallest DFS code
         
-    def get_generalization_level(self, label):
-        return self.label_hierarchy.get(label, 0)
-    
-    def get_best_generalization_label(self, label1, label2):
-        level1 = self.get_generalization_level(label1)
-        level2 = self.get_generalization_level(label2)
-        if level1 > level2:
-            return label1
-        elif level2 > level1:
-            return label2
-        else:
-            if level1 == 0 and level2 == 0:
-                return next(key for key, value in self.label_hierarchy.items() if value == 1)
-            return label1 if len(label1) < len(label2) else label2
-
-    def extract_neighborhoods(self):
+    def extract_neighborhoods(self, nodes=None):
+        if nodes is None:
+            nodes = self.G_prime.N
         def generalized_sort_key(edge):
             # Sorting key based on label generalization and edge attributes.
             label1, label2 = edge[2], edge[3]
@@ -169,7 +156,7 @@ class Anonymization(Graph):
                     self.get_generalization_level(label2),
                     edge[0], edge[1])
         
-        for node in self.G_prime.N:
+        for node in nodes:
             components = self.extract_components(node)
             
             component_to_dfs = []
@@ -193,68 +180,126 @@ class Anonymization(Graph):
             self.G_prime.neighborhoods[node] = neighborhood
         
         print("** END NEIGHBORHOODS EXTRACTION AND CODING **")
-        
-    def compare_ncp(self, label1, label2):
-        if not label1:
-            return self.ncp(label1)
-        if not label2:
-            return self.ncp(label2)
+           
+    def get_best_generalization_label(self, label1, label2):
         level1 = self.get_generalization_level(label1)
         level2 = self.get_generalization_level(label2)
-        if level1 == level2:
-            return 0
-        max_level = self.get_generalization_level("*")
-        return abs(level1 - level2) / max_level
+        if level1 > level2:
+            return label1
+        elif level2 > level1:
+            return label2
+        else:
+            if level1 == 0 and level2 == 0:
+                return next(key for key, value in self.label_hierarchy.items() if value == 1)
+            return label1 if len(label1) < len(label2) else label2
         
+    def get_generalization_level(self, label):
+        """Return the generalization level for a given label.
+        If label is missing, return 0 (lowest)."""
+        if label is None:
+            return 0
+        return self.label_hierarchy.get(label, 0)
+
     def ncp(self, label):
+        """Normalized Certainty Penalty based on the generalization level."""
         level = self.get_generalization_level(label)
         max_level = self.get_generalization_level("*")
-        return level / max_level
+        return level / max_level if max_level > 0 else 0
+
+    def compare_ncp(self, label1, label2):
+        """
+        Compute a penalty between two labels.
+        If both labels are identical, the penalty is 0; otherwise,
+        use the absolute difference normalized by the maximum level.
+        """
+        # Handle missing labels:
+        if label1 is None and label2 is None:
+            return 0
+        if label1 is None or label2 is None:
+            return 1  # maximum penalty if one is missing
+        level1 = self.get_generalization_level(label1)
+        level2 = self.get_generalization_level(label2)
+        max_level = self.get_generalization_level("*")
+        return abs(level1 - level2) / max_level if max_level > 0 else 0
+
+    def cost_aux(self, nbhd_u, comp_u, dfs_u, nbhd_v, comp_v, dfs_v, alpha, beta, gamma):
+        """
+        Compute the cost of matching two components (and their DFS codes) from two neighborhoods.
+        We combine:
+        - The difference in the number of edges in the two components (obtained from their respective Neighborhood objects).
+        - The difference in the number of vertices.
+        - A label penalty computed from pairwise differences between the DFS code edges.
+        If the DFS codes differ in length, we add a penalty for the extra (unmatched) edges.
+        """
+        # Call getNumberOfEdges from the neighborhood (not from the Graph)
+        edge_cost = abs(nbhd_u.getNumberOfEdges(comp_u) - nbhd_v.getNumberOfEdges(comp_v))
+        vertex_cost = abs(len(comp_u) - len(comp_v))
         
-    def cost_aux(self, neighborhood_u, comp_u, dfs_u, neighborhood_v, comp_v, dfs_v, alpha, beta, gamma):
-        comp_edge_cost = abs(neighborhood_u.getNumberOfEdges(comp_u) - neighborhood_v.getNumberOfEdges(comp_v))
-        comp_vertex_addition_cost = abs(len(comp_u) - len(comp_v))
-        comp_label_cost = sum(self.compare_ncp(edge_u[2], edge_v[2]) + self.compare_ncp(edge_u[3], edge_v[3])
-                               for edge_u, edge_v in zip(dfs_u, dfs_v))
-        match_cost = alpha * comp_label_cost + beta * comp_edge_cost + gamma * comp_vertex_addition_cost
-        return match_cost
+        # Compute label cost: sum differences for each corresponding edge in the DFS codes.
+        common_length = min(len(dfs_u), len(dfs_v))
+        label_cost = 0
+        for i in range(common_length):
+            edge_u = dfs_u[i]  # Expected tuple: (u, v, label_u, label_v)
+            edge_v = dfs_v[i]
+            label_cost += self.compare_ncp(edge_u[2], edge_v[2]) + self.compare_ncp(edge_u[3], edge_v[3])
         
-    def cost(self, neighborhood_v, neighborhood_u, alpha, beta, gamma):
-        total_match_cost = 0
-        matched_u = []
-        matched_v = []
-        best_match_cost = float('inf')
-        best_match_idx_i = None
-        best_match_idx_j = None
+        # Add penalty for any unmatched edges.
+        unmatched = abs(len(dfs_u) - len(dfs_v))
+        label_cost += unmatched  # Adjust weight here if desired
         
-        while len(matched_u) < len(neighborhood_u.components) and len(matched_v) < len(neighborhood_v.components):
-            for i, (comp_u, dfs_u) in enumerate(zip(neighborhood_u.components, neighborhood_u.NCC)):
-                for j, (comp_v, dfs_v) in enumerate(zip(neighborhood_v.components, neighborhood_v.NCC)):
-                    match_cost = self.cost_aux(neighborhood_u, comp_u, dfs_u,
-                                               neighborhood_v, comp_v, dfs_v,
-                                               alpha, beta, gamma)
-                    if match_cost < best_match_cost:
-                        best_match_cost = match_cost
-                        best_match_idx_j = j
-                        best_match_idx_i = i
-            if best_match_idx_j is not None:
-                matched_u.append(best_match_idx_i)
-                matched_v.append(best_match_idx_j)
-                # Preserving original logic (note: this line might be a bug, but is kept intact)
-                total_match_cost += total_match_cost
-        for i, dfs_u in enumerate(neighborhood_u.NCC):
-            if i not in matched_u:
-                total_match_cost += self.generalization_cost(dfs_u) * alpha
-        for i, dfs_v in enumerate(neighborhood_v.NCC):
-            if i not in matched_v:
-                total_match_cost += self.generalization_cost(dfs_v) * alpha
-        return total_match_cost
+        return alpha * label_cost + beta * edge_cost + gamma * vertex_cost
 
     def generalization_cost(self, dfs_code):
+        """
+        Compute a fallback cost for a DFS code based solely on the cost of
+        generalizing each edge label in the DFS code to the most general label ('*').
+        """
         cost = 0
         for edge in dfs_code:
             cost += self.compare_ncp(edge[2], '*') + self.compare_ncp(edge[3], '*')
         return cost
+
+    def cost(self, neighborhood_u, neighborhood_v, alpha, beta, gamma):
+        """
+        Compute the overall cost for matching the neighborhoods of two vertices.
+        This function builds a cost matrix where each entry (i, j) represents the cost of matching
+        the i-th component (and its DFS code) from neighborhood_u with the j-th component from neighborhood_v.
+        For any unmatched component, we use the generalization_cost as a penalty.
+        
+        We then use the Hungarian algorithm (linear_sum_assignment) to find the optimal matching and
+        return the total cost.
+        """
+        comps_u = neighborhood_u.components
+        dfs_u_list = neighborhood_u.NCC
+        comps_v = neighborhood_v.components
+        dfs_v_list = neighborhood_v.NCC
+
+        n = len(comps_u)
+        m = len(comps_v)
+        size = max(n, m)
+        
+        # Build the cost matrix. For dummy entries (when one neighborhood has fewer components),
+        # assign the penalty based on the generalization cost.
+        cost_matrix = np.zeros((size, size))
+        for i in range(size):
+            for j in range(size):
+                if i < n and j < m:
+                    cost_matrix[i, j] = self.cost_aux(neighborhood_u, comps_u[i], dfs_u_list[i],
+                                                    neighborhood_v, comps_v[j], dfs_v_list[j],
+                                                    alpha, beta, gamma)
+                else:
+                    # For unmatched components, use the generalization cost penalty.
+                    if i < n:
+                        cost_matrix[i, j] = self.generalization_cost(dfs_u_list[i]) * alpha
+                    elif j < m:
+                        cost_matrix[i, j] = self.generalization_cost(dfs_v_list[j]) * alpha
+                    else:
+                        cost_matrix[i, j] = 0
+
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+        total_cost = cost_matrix[row_ind, col_ind].sum()
+        return total_cost
+
     
     def anonymize_neighborhoods(self, candidate_vertices):
         """
@@ -320,14 +365,14 @@ class Anonymization(Graph):
                 seed_comp, seed_dfs = best_seed_match
                 candidate_comp, candidate_dfs = best_candidate_match                       
                 self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
-                self.extract_neighborhoods()
+                self.extract_neighborhoods(candidate_vertices)
                 neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
                 seed_neighborhood = neighborhoods[seed_vertex]
                 candidate_neighborhood = neighborhoods[candidate_vertex]
                 
         best_label = self.get_best_generalization_label(seed_vertex.label, candidate_vertex.label)
         seed_vertex.label = best_label
-        candidate_vertex.label = best_label
+        candidate_vertex.label = best_label       
                 
         # # Print all NCCs in a pretty way
         # for vertex in candidate_vertices:

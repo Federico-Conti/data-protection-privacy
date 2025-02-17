@@ -33,7 +33,7 @@ def generate_node_data(num_vertices):
 def generate_edge_data(num_vertices):
     edge_data = []
     for node_id in range(1, num_vertices + 1):
-        num_links = random.randint(1, 3)  # Each vertex connects to 1-3 other vertices
+        num_links = random.randint(1, 4)  # Each vertex connects to 1-3 other vertices
         for _ in range(num_links):
             target_id = random.randint(1, num_vertices)
             if node_id != target_id:  # Avoid self-loops
@@ -54,7 +54,7 @@ def generate_graph_csv(num_vertices, node_file, edge_file):
     print(f"Edge data saved to: {edge_file}")
 
 # Parameters
-num_vertices = 10
+num_vertices = 50
 
 # Generate the graph CSV files
 generate_graph_csv(num_vertices, NODES_PATH, EDGES_PATH)
