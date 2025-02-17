@@ -390,6 +390,16 @@ class Anonymization(Graph):
                     common_label = self.get_best_generalization_label(sorted_v[i].label, best_order[i].label)
                     sorted_v[i].label = common_label
                     best_order[i].label = common_label
+                    anonymized_group = next((group for group in self.anonymized_groups if sorted_v[i] in group), None)
+                    if anonymized_group:
+                        for member in anonymized_group:
+                            member.Anonymized = False
+                        self.anonymized_groups.remove(anonymized_group)        
+                    anonymized_group = next((group for group in self.anonymized_groups if best_order[i] in group), None)
+                    if anonymized_group:
+                        for member in anonymized_group:
+                            member.Anonymized = False
+                        self.anonymized_groups.remove(anonymized_group)
             # --- STEP 6: Add missing edges only where one component has an edge and the other does not.
             edge_sets_v = {node.node_id: set(node.edges) for node in sorted_v}
             edge_sets_u = {node.node_id: set(node.edges) for node in best_order}

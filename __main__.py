@@ -145,6 +145,14 @@ def main():
                     # Mark all candidate vertices as anonymized
         anon.anonymized_groups.append([SeedVertex] + CandidateSet)
         
+            # OUTPUT PHASE: Output the anonymized graph
+        print("\n\n")
+        for group in anon.anonymized_groups:
+            print("Anonymized Group:")
+            for node in group:
+                print(node.node_id, node.label, len(node.edges))
+            print("\n") 
+        
         for node in anon.G_prime.N:
             print(f"Node {node.node_id} anonymized: {node.Anonymized}")
         
@@ -156,7 +164,6 @@ def main():
     # Analyze the anonymization
    
     
-    # Print the NCC (Normalized Clustering Coefficient) of each node in the anonymized graph
     # OUTPUT PHASE: Output the anonymized graph
     print("\n\n")
     for group in anon.anonymized_groups:
@@ -198,6 +205,6 @@ if __name__ == "__main__":
     def test_anonymization(n):
         main()
         
-    # Estimate the Big-O complexity 
-    best, others = big_o.big_o(test_anonymization, big_o.datagen.n_, n_repeats=5)
-    print(f"Estimated Big-O complexity: {best}")
+    # # Estimate the Big-O complexity 
+    # best, others = big_o.big_o(test_anonymization, big_o.datagen.n_, n_repeats=10)
+    # print(f"Estimated Big-O complexity: {best}")
