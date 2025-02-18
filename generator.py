@@ -29,15 +29,26 @@ def generate_node_data(num_vertices):
         node_data.append({"id": node_id, "label": label})
     return pd.DataFrame(node_data)
 
-# Generate edges
+# Generate edges ensuring each node gets more than five connections
+# and no duplicate edges (i.e. if 1,2 exists, 2,1 will not be generated).
 def generate_edge_data(num_vertices):
     edge_data = []
+    edges_set = set()
     for node_id in range(1, num_vertices + 1):
-        num_links = random.randint(1, 4)  # Each vertex connects to 1-3 other vertices
-        for _ in range(num_links):
+        # Each node will attempt to create between 6 and 8 edges (more than five).
+        desired_links = random.randint(5, 10)
+        links_created = 0
+        while links_created < desired_links:
             target_id = random.randint(1, num_vertices)
-            if node_id != target_id:  # Avoid self-loops
-                edge_data.append({"id_1": node_id, "id_2": target_id})
+            if node_id == target_id:
+                continue  # Avoid self-loops
+            # Order the nodes to avoid duplicates (e.g., (1,2) and (2,1))
+            edge = (min(node_id, target_id), max(node_id, target_id))
+            if edge in edges_set:
+                continue  # Skip if this edge already exists
+            edges_set.add(edge)
+            edge_data.append({"id_1": edge[0], "id_2": edge[1]})
+            links_created += 1
     return pd.DataFrame(edge_data)
 
 # Generate and save the datasets
