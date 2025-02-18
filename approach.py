@@ -364,15 +364,16 @@ class Anonymization(Graph):
             if best_seed_match and best_candidate_match:	
                 seed_comp, seed_dfs = best_seed_match
                 candidate_comp, candidate_dfs = best_candidate_match                       
-                self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
-                self.extract_neighborhoods(candidate_vertices)
+                affected_nodes = self.make_isomorphic(seed_comp, candidate_comp, seed_vertex, candidate_vertex)
+                affected_nodes = list(affected_nodes)
+                self.extract_neighborhoods(candidate_vertices+affected_nodes)
                 neighborhoods = {v: self.G_prime.neighborhoods[v] for v in candidate_vertices}
                 seed_neighborhood = neighborhoods[seed_vertex]
                 candidate_neighborhood = neighborhoods[candidate_vertex]
                 
         best_label = self.get_best_generalization_label(seed_vertex.label, candidate_vertex.label)
         seed_vertex.label = best_label
-        candidate_vertex.label = best_label       
+        candidate_vertex.label = best_label           
                 
         # # Print all NCCs in a pretty way
         # for vertex in candidate_vertices:
@@ -394,13 +395,18 @@ class Anonymization(Graph):
                 for member in anonymized_group:
                     member.Anonymized = False
                 self.anonymized_groups.remove(anonymized_group)  
+            self.extract_neighborhoods(anonymized_group)
             
                           
     def make_isomorphic(self, comp_v, comp_u, seed_vertex, candidate_vertex):
         """
         Make two components isomorphic by modifying their structure directly.
+        Returns a set of affected nodes (those modified and their neighbors).
         """
+        affected_nodes = set()  # Track nodes affected by edge changes
+
         def bfs_and_match(comp_v, comp_u):
+            nonlocal affected_nodes
             # --- STEP 0: Balance the components.
             while len(comp_v) < len(comp_u):
                 addVertexToComponent(comp_v, seed_vertex)
@@ -476,6 +482,8 @@ class Anonymization(Graph):
                                 edge_sets_u[node2.node_id].add(node1.node_id)
                                 B[i, j] = 1
                                 B[j, i] = 1
+                                affected_nodes.add(node1)
+                                affected_nodes.add(node2)
                         elif B[i, j] == 1 and A[i, j] == 0:
                             node1 = sorted_v[i]
                             node2 = sorted_v[j]
@@ -488,6 +496,8 @@ class Anonymization(Graph):
                                 edge_sets_v[node2.node_id].add(node1.node_id)
                                 A[i, j] = 1
                                 A[j, i] = 1
+                                affected_nodes.add(node1)
+                                affected_nodes.add(node2)
             # --- STEP 7: Final verification.
             if not np.array_equal(A, B):
                 raise ValueError("Components are not isomorphic after optimized matching.")
@@ -517,11 +527,21 @@ class Anonymization(Graph):
                 if candidates:
                     selected = min(candidates, key=lambda n: len(n.edges))
                     self.check_and_remove_anonymized_group(selected)
-                    
                 else:
                     raise ValueError("No more candidates available for anonymization.")
             component.append(selected)
             selected.addEdge(owning_vertex.node_id)
             owning_vertex.addEdge(selected.node_id)
+            affected_nodes.add(selected)
+            affected_nodes.add(owning_vertex)
         
         bfs_and_match(comp_v, comp_u)
+        
+        # Collect neighbors of affected nodes
+        neighbors = set()
+        for node in affected_nodes:
+            for neighbor_id in node.edges:
+                neighbor = self.G_prime.getNode(neighbor_id)
+                neighbors.add(neighbor)
+        all_affected = affected_nodes.union(neighbors)
+        return all_affected
