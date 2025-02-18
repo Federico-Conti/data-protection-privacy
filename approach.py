@@ -382,7 +382,20 @@ class Anonymization(Graph):
         #         print(f"  Component {i + 1}:")
         #         for edge in ncc:
         #             print(f"    {edge}")
-                    
+        
+        
+    def check_and_remove_anonymized_group(self, node):
+        """
+        Check if the node is in an anonymized group and remove it from the group.
+        """
+        if node.Anonymized:
+            anonymized_group = next((group for group in self.anonymized_groups if node in group), None)
+            if anonymized_group:
+                for member in anonymized_group:
+                    member.Anonymized = False
+                self.anonymized_groups.remove(anonymized_group)  
+            
+                          
     def make_isomorphic(self, comp_v, comp_u, seed_vertex, candidate_vertex):
         """
         Make two components isomorphic by modifying their structure directly.
@@ -455,6 +468,8 @@ class Anonymization(Graph):
                             node1 = best_order[i]
                             node2 = best_order[j]
                             if node2.node_id not in edge_sets_u[node1.node_id]:
+                                self.check_and_remove_anonymized_group(node1)
+                                self.check_and_remove_anonymized_group(node2)
                                 node1.addEdge(node2.node_id)
                                 node2.addEdge(node1.node_id)
                                 edge_sets_u[node1.node_id].add(node2.node_id)
@@ -465,6 +480,8 @@ class Anonymization(Graph):
                             node1 = sorted_v[i]
                             node2 = sorted_v[j]
                             if node2.node_id not in edge_sets_v[node1.node_id]:
+                                self.check_and_remove_anonymized_group(node1)
+                                self.check_and_remove_anonymized_group(node2)
                                 node1.addEdge(node2.node_id)
                                 node2.addEdge(node1.node_id)
                                 edge_sets_v[node1.node_id].add(node2.node_id)
@@ -499,11 +516,8 @@ class Anonymization(Graph):
                                 and node.node_id not in owning_vertex.edges]
                 if candidates:
                     selected = min(candidates, key=lambda n: len(n.edges))
-                    anonymized_group = next((group for group in self.anonymized_groups if selected in group), None)
-                    if anonymized_group:
-                        for member in anonymized_group:
-                            member.Anonymized = False
-                        self.anonymized_groups.remove(anonymized_group)
+                    self.check_and_remove_anonymized_group(selected)
+                    
                 else:
                     raise ValueError("No more candidates available for anonymization.")
             component.append(selected)
