@@ -4,10 +4,10 @@ class Node:
         self.label = label
         self.Visited = False
         self.Anonymized = False
-        self.edges = []  # List of neighbors (Node objects)
+        self.edges = [] 
         
     def addEdge(self, neighbor_id):
-        if neighbor_id not in self.edges:  # ANoid duplicate edges
+        if neighbor_id not in self.edges:  
             self.edges.append(neighbor_id)
             self.edges.sort()
             
@@ -27,7 +27,7 @@ class Node:
 class Neighborhood:
     def __init__(self, components, NCC):
         self.components = components
-        self.NCC = NCC  # List of nodes in the neighborhood
+        self.NCC = NCC
     
     def getNumberOfEdges(self,component):
         edges = 0
@@ -38,8 +38,8 @@ class Neighborhood:
 
 class Graph:
     def __init__(self):
-        self.N = []  # List of Node (Node objects (vertex and edges))
-        self.neighborhoods = {}  # Dictionary to store neighborhoods: key is Node, value is list of NCC
+        self.N = []  
+        self.neighborhoods = {} 
         
     def addVertex(self, node: Node):
         self.N.append(node)

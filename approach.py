@@ -1,14 +1,14 @@
 import numpy as np
 from scipy.optimize import linear_sum_assignment
-from graph import Graph, Node, Neighborhood
+from graph import Graph, Neighborhood
 from functools import cmp_to_key
-import random
+import copy
 
 class Anonymization(Graph):
 
     def __init__(self, G: Graph, k: int, alpha: float, beta: float, gamma: float):
         self.G = G
-        self.G_prime = self.G
+        self.G_prime = copy.deepcopy(G)
         self.k = k
         self.anonymized_groups = []
         self.label_hierarchy = {
@@ -20,21 +20,7 @@ class Anonymization(Graph):
         self.beta = beta
         self.gamma = gamma
         
-    def printAllNodes(self):
-        for v in self.G_prime.N:
-            print(v)
-        print("\n")
-        
-    def printAllNcc(self):
-        for vertex, ncc in self.G_prime.neighborhoods.items():
-            print(f"  \nVertex {vertex.node_id}:")
-            for i, comp in enumerate(ncc.NCC):
-                print(f"  C{i + 1}:")
-                for edges in comp:
-                    print(f"    {edges}")
-                    
     def extract_components(self, node):
-        # Only consider the neighbors of the given node
         neighbors = [self.G_prime.getNode(neighbor_id) for neighbor_id in node.edges]
         components = []
         def dfs(current, component):
@@ -46,7 +32,6 @@ class Anonymization(Graph):
                 neighbor = self.G_prime.getNode(neighbor_id)
                 if neighbor in neighbors and not neighbor.Visited:
                     dfs(neighbor, component)
-        # Reset visited flag only for nodes in the neighbors list
         for neighbor in neighbors:
             neighbor.Visited = False
         for neighbor in neighbors:
@@ -61,12 +46,12 @@ class Anonymization(Graph):
         Perform Depth First Search (DFS) starting from a given node.
         Returns a list of tuples representing the DFS traversal in the format (id1, id2, l1, l2).
         """
-        stack = [(start_node, None)]  # (current_node, parent_node)
+        stack = [(start_node, None)]  
         visited = set()
         dfs_result = []
         mapping = {}
         counter = 0
-        seen_edges = set()  # Use a set to prevent duplicate edge entries
+        seen_edges = set()  
         
         while stack:
             current_node, parent_node = stack.pop()
@@ -131,7 +116,6 @@ class Anonymization(Graph):
             node = component[0]
             return [(0, None, node.label, None)]
         
-        # Reset visited flags for all nodes in the component
         for node in component:
             node.Visited = False
         
@@ -150,7 +134,6 @@ class Anonymization(Graph):
         if nodes is None:
             nodes = self.G_prime.N
         def generalized_sort_key(edge):
-            # Sorting key based on label generalization and edge attributes.
             label1, label2 = edge[2], edge[3]
             return (self.get_generalization_level(label1),
                     self.get_generalization_level(label2),
@@ -179,7 +162,7 @@ class Anonymization(Graph):
             neighborhood = Neighborhood(sorted_components, sorted_NCC)
             self.G_prime.neighborhoods[node] = neighborhood
         
-        print("** END NEIGHBORHOODS EXTRACTION AND CODING **")
+        # print("** END NEIGHBORHOODS EXTRACTION AND CODING **")
            
     def get_best_generalization_label(self, label1, label2):
         level1 = self.get_generalization_level(label1)
@@ -231,7 +214,6 @@ class Anonymization(Graph):
         - A label penalty computed from pairwise differences between the DFS code edges.
         If the DFS codes differ in length, we add a penalty for the extra (unmatched) edges.
         """
-        # Call getNumberOfEdges from the neighborhood (not from the Graph)
         edge_cost = abs(nbhd_u.getNumberOfEdges(comp_u) - nbhd_v.getNumberOfEdges(comp_v))
         vertex_cost = abs(len(comp_u) - len(comp_v))
         
@@ -239,7 +221,7 @@ class Anonymization(Graph):
         common_length = min(len(dfs_u), len(dfs_v))
         label_cost = 0
         for i in range(common_length):
-            edge_u = dfs_u[i]  # Expected tuple: (u, v, label_u, label_v)
+            edge_u = dfs_u[i] 
             edge_v = dfs_v[i]
             label_cost += self.compare_ncp(edge_u[2], edge_v[2]) + self.compare_ncp(edge_u[3], edge_v[3])
         
@@ -262,12 +244,7 @@ class Anonymization(Graph):
     def cost(self, neighborhood_u, neighborhood_v, alpha, beta, gamma):
         """
         Compute the overall cost for matching the neighborhoods of two vertices.
-        This function builds a cost matrix where each entry (i, j) represents the cost of matching
-        the i-th component (and its DFS code) from neighborhood_u with the j-th component from neighborhood_v.
         For any unmatched component, we use the generalization_cost as a penalty.
-        
-        We then use the Hungarian algorithm (linear_sum_assignment) to find the optimal matching and
-        return the total cost.
         """
         comps_u = neighborhood_u.components
         dfs_u_list = neighborhood_u.NCC
@@ -288,7 +265,6 @@ class Anonymization(Graph):
                                                     neighborhood_v, comps_v[j], dfs_v_list[j],
                                                     alpha, beta, gamma)
                 else:
-                    # For unmatched components, use the generalization cost penalty.
                     if i < n:
                         cost_matrix[i, j] = self.generalization_cost(dfs_u_list[i]) * alpha
                     elif j < m:
@@ -315,7 +291,6 @@ class Anonymization(Graph):
         while unmatched_seed or unmatched_candidate:
             matched_seed = set()
             matched_candidate = set()
-            # Step 2.1: Perfectly match components
             for i, (seed_comp, seed_dfs) in enumerate(zip(seed_neighborhood.components, seed_neighborhood.NCC)):
                 for j, (candidate_comp, candidate_dfs) in enumerate(zip(candidate_neighborhood.components, candidate_neighborhood.NCC)):
                     if j in matched_candidate:
@@ -325,10 +300,9 @@ class Anonymization(Graph):
                     ):
                         matched_seed.add(i)
                         matched_candidate.add(j)
-                        print(f"Matched component {i + 1} in seed with component {j + 1} in candidate.")
+                        # print(f"Matched component {i + 1} in seed with component {j + 1} in candidate.")
                         break
 
-            # Step 2.2: Handle unmatched components
             unmatched_seed = [
                 (seed_neighborhood.components[i], seed_neighborhood.NCC[i])
                 for i in range(len(seed_neighborhood.NCC)) if i not in matched_seed
@@ -375,15 +349,8 @@ class Anonymization(Graph):
         seed_vertex.label = best_label
         candidate_vertex.label = best_label           
                 
-        # # Print all NCCs in a pretty way
-        # for vertex in candidate_vertices:
-        #     neighborhood = self.G_prime.neighborhoods[vertex]
-        #     print(f"\nNeighborhood for vertex {vertex.node_id}:")
-        #     for i, ncc in enumerate(neighborhood.NCC):
-        #         print(f"  Component {i + 1}:")
-        #         for edge in ncc:
-        #             print(f"    {edge}")
-        
+        for node in candidate_vertices:
+            node.Anonymized = True
         
     def check_and_remove_anonymized_group(self, node):
         """
@@ -395,7 +362,10 @@ class Anonymization(Graph):
                 for member in anonymized_group:
                     member.Anonymized = False
                 self.anonymized_groups.remove(anonymized_group)  
-            self.extract_neighborhoods(anonymized_group)
+                self.extract_neighborhoods(anonymized_group)
+            else:
+                node.Anonymized = False
+                self.extract_neighborhoods([node])
             
                           
     def make_isomorphic(self, comp_v, comp_u, seed_vertex, candidate_vertex):
@@ -403,7 +373,7 @@ class Anonymization(Graph):
         Make two components isomorphic by modifying their structure directly.
         Returns a set of affected nodes (those modified and their neighbors).
         """
-        affected_nodes = set()  # Track nodes affected by edge changes
+        affected_nodes = set()  
 
         def bfs_and_match(comp_v, comp_u):
             nonlocal affected_nodes
